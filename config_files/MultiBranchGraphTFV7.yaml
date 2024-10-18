@@ -1,0 +1,38 @@
+model_opts:
+  model: MultiBranchGraphTFV7
+  apply_class_weights: True
+  generator: True
+  obs_input_type: [scene_context_with_running_ped_v2, 
+                   scene_context_with_running_ped_v2_doubled,
+                   box, veh_speed]
+  frameworks:
+    pytorch: True
+    hugging_faces: True
+    multi-gpu: False
+  process_input_features: 
+    enabled: True
+    indexes_to_stack: [2,3]
+    static_features_indexes: []
+  vanilla_transformer:
+    normalize_boxes: True
+    pose_configs:
+      keep_most_stable_keypoints: True
+      add_distances_between_keypoints: False
+      add_angles_between_limb_and_axis: False
+      add_joints_angles: False
+      add_joints_angles_diff: False
+    input_embedding:
+      active: False
+    positional_encoding:
+      active: False
+    net_opts:
+      num_hidden_units: 128
+      global_pooling: avg
+      regularizer_val: 0.0001
+      cell_type: gru
+      backbone: vgg16
+exp_opts:
+  datasets: [pie]
+  batch_size: [16, 4, 4]
+  epochs: [1, 40, 40]
+  lr: [5.0e-05, 5.0e-06, 5.0e-06]
