@@ -1,6 +1,6 @@
 
 from tensorflow.keras.layers import Layer
-import tensorflow.keras.backend as K
+#import tensorflow.keras.backend as K
 
 
 class T2V(Layer):

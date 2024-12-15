@@ -4,8 +4,8 @@ import yaml
 import copy
 import cv2
 
-import tensorflow as tf
-import tensorflow_addons as tfa
+#import tensorflow as tf
+#import tensorflow_addons as tfa
 from tensorflow.keras.layers import GRU, LSTM, RNN
 from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, ModelCheckpoint

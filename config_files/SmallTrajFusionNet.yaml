@@ -1,17 +1,17 @@
 model_opts:
-  model: TrajectoryTransformer
+  model: SmallTrajFusionNet
   apply_class_weights: True
   generator: True
-  obs_input_type: [box, speed]
+  obs_input_type: [scene_context_with_running_ped,
+                   box, veh_speed]
   frameworks:
     pytorch: True
     hugging_faces: True
     multi-gpu: False
   process_input_features: 
     enabled: True
-    indexes_to_stack: [0, 1]
+    indexes_to_stack: [1,2]
     static_features_indexes: []
-    super_resolution: False
   vanilla_transformer:
     normalize_boxes: True
     pose_configs:
@@ -32,6 +32,6 @@ model_opts:
       backbone: vgg16
 exp_opts:
   datasets: [pie]
-  batch_size: [64, 4, 4]
-  epochs: [40, 40, 40]
-  lr: [5.0e-05, 5.0e-06, 5.0e-06]
+  batch_size: [16, 4, 4]
+  epochs: [15, 40, 40]
+  lr: [5.0e-06, 5.0e-06, 5.0e-06]

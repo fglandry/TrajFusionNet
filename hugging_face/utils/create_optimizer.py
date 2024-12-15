@@ -1,14 +1,14 @@
 import math
 from torch import nn
 from transformers.dependency_versions_check import dep_version_check
-from transformers.integrations import is_fairscale_available
+#from transformers.integrations import is_fairscale_available
 from transformers.utils import is_sagemaker_mp_enabled
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.trainer import Trainer
 from transformers.trainer_utils import ShardedDDPOption
 from transformers.trainer_pt_utils import get_parameter_names
 
-
+"""
 if is_fairscale_available():
     dep_version_check("fairscale")
     import fairscale
@@ -16,6 +16,7 @@ if is_fairscale_available():
 
 if is_sagemaker_mp_enabled():
     import smdistributed.modelparallel.torch as smp
+"""
 
 def override_create_optimizer(trainer_obj, alternate_training=False, epoch_index=0):
     """
@@ -29,12 +30,11 @@ def override_create_optimizer(trainer_obj, alternate_training=False, epoch_index
         decay_parameters = [name for name in decay_parameters if "bias" not in name]
         
         if alternate_training:
-            if epoch_index % 2 == 0:
+            if epoch_index <= 8:
                 params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
-                                    (p.requires_grad and n.startswith("traj_class_TF"))] # n.startswith("vgg_encoder")
+                                    (p.requires_grad and "van_output_embed" in n)] # n.startswith("vgg_encoder")
             else:
-                params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
-                                    (p.requires_grad and not n.startswith("traj_class_TF"))] # n.startswith("vgg_encoder")
+                params_to_lower_lr = []
         else:
             """
             # ViT 
@@ -67,7 +67,7 @@ def override_create_optimizer(trainer_obj, alternate_training=False, epoch_index
                 "params": [
                     p for n, p in opt_model.named_parameters() if (p.requires_grad and n in params_to_lower_lr)
                 ],
-                'lr': 5.0e-07
+                'lr': 0.0
             },
         ]
 

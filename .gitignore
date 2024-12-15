@@ -6,3 +6,4 @@ data_cache/
 docker/
 weights/
 videomae*/
+_other/

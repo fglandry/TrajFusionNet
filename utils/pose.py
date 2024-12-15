@@ -5,7 +5,7 @@ import numpy as np
 import time
 import torch
 
-from libs.simple_hrnet.SimpleHRNet import SimpleHRNet
+# from libs.simple_hrnet.SimpleHRNet import SimpleHRNet
 
 BODY_PARTS = { "Nose": 0, "Neck": 1, "RShoulder": 2, "RElbow": 3, "RWrist": 4,
                "LShoulder": 5, "LElbow": 6, "LWrist": 7, "RHip": 8, "RKnee": 9,

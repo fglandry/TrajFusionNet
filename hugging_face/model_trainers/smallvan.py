@@ -17,7 +17,7 @@ from hugging_face.utils.create_optimizer import get_optimizer
 from hugging_face.utilities import compute_loss, get_device
 from hugging_face.utils.custom_trainer import CustomTrainer
 
-class VAN(HuggingFaceImageClassificationModel):
+class SmallVAN(HuggingFaceImageClassificationModel):
 
     def train(self,
               data_train, 
@@ -30,7 +30,7 @@ class VAN(HuggingFaceImageClassificationModel):
               train_opts=None,
               dataset_statistics=None,
               class_w=None,
-              **kwrags
+              **kwargs
         ):
         
         
@@ -50,7 +50,9 @@ class VAN(HuggingFaceImageClassificationModel):
         model = VanEncodingsForImageClassification.from_pretrained(
             model_ckpt,
             config=config,
-            ignore_mismatched_sizes = True)
+            ignore_mismatched_sizes = True,
+            class_w=class_w,
+            dataset_name=kwargs["model_opts"]["dataset_full"])
         summary(model)
         """
         model = VanForImageClassification.from_pretrained(
@@ -208,10 +210,14 @@ class VanEncodingsModel(VanPreTrainedModel):
 
 
 class VanEncodingsForImageClassification(VanPreTrainedModel):
-    def __init__(self, config):
+    def __init__(self, config,
+                 class_w=None,
+                 dataset_name=None):
         super().__init__(config)
         self.van = VanEncodingsModel(config)
         self._config = config
+        self._class_w = class_w
+        self.dataset_name = dataset_name
         self.classifier = (
             nn.Linear(30, config.num_labels) if config.num_labels > 0 else nn.Identity()
         )
@@ -224,7 +230,13 @@ class VanEncodingsForImageClassification(VanPreTrainedModel):
         labels: Optional[torch.LongTensor] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        dataset_statistics=None
     ) -> Union[Tuple, ImageClassifierOutputWithNoAttention]:
+        self._device = get_device()
+        self._dataset = self.dataset_name
+
+        self.dataset_statistics = dataset_statistics
+        self.class_w = torch.tensor(self._class_w).to(self._device)
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -240,6 +252,7 @@ class VanEncodingsForImageClassification(VanPreTrainedModel):
                             self._config,
                             self._config.num_labels,
                             return_dict,
+                            class_w=self.class_w,
                             problem_type=self._config.problem_type)
 
 

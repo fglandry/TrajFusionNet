@@ -670,7 +670,7 @@ class Static(ActionPredict):
 
         # assert len(model_opts['obs_input_type']) == 1
         self._generator = model_opts.get('generator', True)
-        model_opts['normalize_boxes'] = False if not model_opts['model'] == "VAN" else True
+        model_opts['normalize_boxes'] = False if not model_opts['model'] in ["VAN", "SmallVAN"] else True
         process = False
         aux_name = '_'.join([self._backbone, 'raw']).strip('_')
         dataset = model_opts['dataset']
@@ -2568,6 +2568,11 @@ class VAN(Static):
     def get_model(self, data_params, *args, **kwargs):
         os.makedirs(os.path.dirname(self._weights), exist_ok=True)
         return None
+    
+class SmallVAN(VAN, Static):
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
     
 class HF_Resnet50(Static):
     """ Copied C3D model

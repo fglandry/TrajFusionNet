@@ -2,7 +2,7 @@ model_opts:
   model: MultiBranchGraphTFV7
   apply_class_weights: True
   generator: True
-  obs_input_type: [scene_context_with_running_ped_v2, 
+  obs_input_type: [scene_context_with_running_ped, 
                    scene_context_with_running_ped_v2_doubled,
                    box, veh_speed]
   frameworks:
@@ -34,5 +34,5 @@ model_opts:
 exp_opts:
   datasets: [pie]
   batch_size: [16, 4, 4]
-  epochs: [1, 40, 40]
+  epochs: [30, 40, 40]
   lr: [5.0e-05, 5.0e-06, 5.0e-06]
