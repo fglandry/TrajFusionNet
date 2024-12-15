@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import torch
 
-from hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
+#from hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
+from hugging_face.model_trainers.smalltrajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
 from hugging_face.timeseries_utils import denormalize_trajectory_data, transform_trajectory_data
 from hugging_face.utils.semantic_segmentation import ade_palette
 from utils.dataset_statistics import calculate_stats_for_trajectory_data
@@ -33,11 +34,12 @@ class RunningPed(metaclass=Singleton):
         config_for_trajectory_predictor = get_config_for_trajectory_pred(
             encoder_input_size=5, seq_len=15, hyperparams={}, pred_len=60)
         if self._dataset in ["pie", "combined"]:
-            checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
+            checkpoint = "data/models/pie/SmallTrajectoryTransformer/17Nov2024-17h45m15s_SM4"
         elif self._dataset == "jaad_all":
-            checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
+            #checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
+            checkpoint = "data/models/jaad/SmallTrajectoryTransformer/17Nov2024-14h37m27s_SM1b"
         elif self._dataset == "jaad_beh":
-            checkpoint = "data/models/jaad/TrajectoryTransformer/10Aug2024-11h55m10s_TE23"
+            checkpoint = "data/models/jaad/SmallTrajectoryTransformer/17Nov2024-14h37m27s_SM1b"
         pretrained_model = VanillaTransformerForForecast.from_pretrained(
             checkpoint,
             config_for_timeseries_lib=config_for_trajectory_predictor,
@@ -82,101 +84,33 @@ class RunningPed(metaclass=Singleton):
         abs_pred_coords = np.add(denormalized[:,0:4], bbox_sequence[0])
         abs_pred_coords = np.concatenate([abs_pred_coords, np.expand_dims(denormalized[:,-1], 1)], axis=1) # re-add speed
 
-        # simple_palette = [32, 64, 96, 128, 160, 192, 224]
-        simple_palette = [[32, 32], [64, 64], [96, 96], [128, 128], [160, 160], [192, 192], [224, 224]]
-        sp_idx = 0
-        
-        """
-        for idx, coords in enumerate(abs_pred_coords):
-            b_org = list(map(int, coords[0:4])).copy()
-            #start_point = (b_org[0], b_org[1])
-            #end_point = (b_org[2], b_org[3])
-            #thickness = 2
-            #color = np.array(ade_palette()[idx])
-            #color = tuple([int(c) for c in color])
-            #img_features[:,:,1] = cv2.rectangle(img_features, start_point, end_point, color, thickness)[:,:,1]
-            img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 1] = np.array(ade_palette()[idx])[1]
+        if feature_type == "scene_context_with_running_ped_doubled" or \
+            feature_type == "scene_context_with_running_ped_v2_doubled":
 
-        for idx, coords in enumerate(bbox_sequence):
-            b_org = list(map(int, coords[0:4])).copy()
-            #start_point = (b_org[0], b_org[1])
-            #end_point = (b_org[2], b_org[3])
-            #thickness = 2
-            #color = np.array(ade_palette()[idx+60])
-            #color = tuple([int(c) for c in color])
-            #img_features[:,:,0] = cv2.rectangle(img_features, start_point, end_point, color, thickness)[:,:,0]
-            img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0] = np.array(ade_palette()[idx+60])[0]
-        """
-        
-        if feature_type == "scene_context_with_running_ped_v2_doubled":
-
+            color_idx = 0
             for idx, coords in enumerate(bbox_sequence):
                 if idx == 0 or ((idx+1) % 5 == 0):
                     b_org = list(map(int, coords[0:4])).copy()
-                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[idx])[0:2]
+                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[color_idx])[0:2]
+                    color_idx += 1
 
-                #start_point = (b_org[0], b_org[1])
-                #end_point = (b_org[2], b_org[3])
-                #thickness = 2
-                #color = np.array(ade_palette()[idx])
-                #color = tuple([int(c) for c in color])
-                #img_features = cv2.rectangle(img_features, start_point, end_point, color, thickness)
-
-            # Put index 0 in foreground
-            # coords = bbox_sequence[0]
-            # b_org = list(map(int, coords[0:4])).copy()
-            # img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[0])[0:2]
-
-            
         else:
+            # Add predicted bounding boxes to image
+            color_idx = 4
             for idx, coords in enumerate(abs_pred_coords):
 
                 b_org = list(map(int, coords[0:4])).copy()
                 
                 if (idx+1) % 5 == 0:
-                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[idx+15])[0:2]
-                
-                #if keep_channel_with_ped:
-                    #img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[idx+1])[0:2]
-                    #tart_point = (b_org[0], b_org[1])
-                    #end_point = (b_org[2], b_org[3])
-                    #thickness = 2
-                    #color = np.array(ade_palette()[idx])
-                    #color = tuple([int(c) for c in color])
-                    #img_features = cv2.rectangle(img_features, start_point, end_point, color, thickness)
+                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[color_idx])[0:2]
+                    color_idx += 1
 
-                # img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], :] = [0, 255, 0]
-
+            # Add observed bbox at time t to forefront
             for idx, coords in enumerate(bbox_sequence):
 
                 b_org = list(map(int, coords[0:4])).copy()
 
                 if idx == len(bbox_sequence)-1:
-                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[idx])[0:2]
+                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[3])[0:2]
 
-                #if keep_channel_with_ped:
-                #    if idx % 2 == 1:
-                #        if idx < 8:
-                #            img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0] = np.array(ade_palette()[idx])[0]
-                #        elif idx >= 8:
-                #            img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 1] = np.array(ade_palette()[idx])[1]
-                #else:
-                #    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], :] = np.array(ade_palette()[idx])
-                #img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array(ade_palette()[idx])[0:2]
-            
-            """
-            # Add last element in bbox_sequence to foreground
-            for idx, coords in enumerate(bbox_sequence):
-
-                b_org = list(map(int, coords[0:4])).copy()
-                if keep_channel_with_ped:
-                    if idx == len(bbox_sequence)-1:
-                        img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = np.array([simple_palette[sp_idx]])
-                        #start_point = (b_org[0], b_org[1])
-                        #end_point = (b_org[2], b_org[3])
-                        #thickness = 2
-                        #color = np.array(ade_palette()[idx])
-                        #color = tuple([int(c) for c in color])
-                        #img_features = cv2.rectangle(img_features, start_point, end_point, color, thickness)
-            """
         return img_features

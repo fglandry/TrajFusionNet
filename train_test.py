@@ -21,7 +21,6 @@ import yaml
 
 import numpy as np
 from transformers import set_seed as huggingface_set_seed
-import tensorflow as tf
 import torch
 
 from action_predict import ActionPredict
@@ -305,7 +304,7 @@ def usage():
 
 def set_seeds(seed=SEED):
     torch.manual_seed(seed)
-    tf.random.set_seed(seed)
+    # tf.random.set_seed(seed)
     huggingface_set_seed(seed)
     random.seed(seed)
     np.random.seed(seed)

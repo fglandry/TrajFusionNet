@@ -736,6 +736,12 @@ class MultiBranchGraphTFV7(BaseTransformerCrossAttentionV2,
                  **kwargs):
         super().__init__(**kwargs)
 
+class SmallTrajFusionNet(BaseTransformerCrossAttentionV2, 
+                         ActionPredict):
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
+
 class TrajectoryTransformer(VanillaTransformer, 
                            ActionPredict):
     def __init__(self,
@@ -780,6 +786,18 @@ class TrajectoryTransformerV3c(BaseTransformerCrossAttentionV2,
 
 class TrajectoryTransformerV3d(BaseTransformerCrossAttentionV2, 
                                ActionPredict):
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+class SmallTrajectoryTransformer(VanillaTransformer, 
+                                 ActionPredict):
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+class SmallTrajectoryTransformerb(VanillaTransformer, 
+                                 ActionPredict):
     def __init__(self,
                  **kwargs):
         super().__init__(**kwargs)

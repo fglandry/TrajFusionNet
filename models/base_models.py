@@ -12,8 +12,8 @@ from tensorflow.keras.layers import Conv1D, MultiHeadAttention, LayerNormalizati
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import Input, Concatenate, concatenate, Dense
 from tensorflow.keras.layers import Layer, Embedding, TimeDistributed
-import tensorflow.keras.backend as K
-import tensorflow as tf
+#import tensorflow.keras.backend as K
+#import tensorflow as tf
 
 from models.custom_layers import CustomAttention, T2V
 
@@ -435,6 +435,7 @@ def I3DNet(freeze_conv_layers=False, weights=None, classes=1,
 
     return net_model
 
+"""
 class Time2Vec(tf.keras.layers.Layer):
     def __init__(self, kernel_size=1):
         super(Time2Vec, self).__init__(trainable=True, name='Time2VecLayer')
@@ -460,7 +461,7 @@ class Time2Vec(tf.keras.layers.Layer):
     
     def compute_output_shape(self, input_shape):
         return (input_shape[0], input_shape[1]*(self.k + 1))
-
+"""
 
 class TransformerNet():
 

@@ -1,5 +1,5 @@
 model_opts:
-  model: TrajectoryTransformer
+  model: SmallTrajectoryTransformerb
   apply_class_weights: True
   generator: True
   obs_input_type: [box, speed]
@@ -9,7 +9,7 @@ model_opts:
     multi-gpu: False
   process_input_features: 
     enabled: True
-    indexes_to_stack: [0, 1]
+    indexes_to_stack: [0,1]
     static_features_indexes: []
     super_resolution: False
   vanilla_transformer:
@@ -31,7 +31,7 @@ model_opts:
       cell_type: gru
       backbone: vgg16
 exp_opts:
-  datasets: [pie]
-  batch_size: [64, 4, 4]
-  epochs: [40, 40, 40]
-  lr: [5.0e-05, 5.0e-06, 5.0e-06]
+  datasets: [jaad_beh]
+  batch_size: [16, 4, 4]
+  epochs: [60, 40, 40]
+  lr: [5.0e-06, 5.0e-06, 5.0e-06]

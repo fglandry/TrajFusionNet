@@ -1,5 +1,5 @@
 model_opts:
-  model: TrajectoryTransformer
+  model: SmallTrajectoryTransformer
   apply_class_weights: True
   generator: True
   obs_input_type: [box, speed]
@@ -31,7 +31,7 @@ model_opts:
       cell_type: gru
       backbone: vgg16
 exp_opts:
-  datasets: [pie]
+  datasets: [jaad_beh]
   batch_size: [64, 4, 4]
   epochs: [40, 40, 40]
   lr: [5.0e-05, 5.0e-06, 5.0e-06]
