@@ -2,7 +2,7 @@ model_opts:
   model: MultiBranchGraphTFV7
   apply_class_weights: True
   generator: True
-  obs_input_type: [scene_context_with_running_ped, 
+  obs_input_type: [scene_context_with_running_ped_v2, 
                    scene_context_with_running_ped_v2_doubled,
                    box, veh_speed]
   frameworks:
