@@ -286,8 +286,8 @@ def get_static_context_data(self,
     data_cpy = copy.deepcopy(data)
     if not concatenate_frames and not add_optical_flow:
         for k, v in data.items():
-            if 'act' not in k and v.size != 0: # TODO: verify
-                if data_gen_params["crop_type"] == "remove_running_ped":
+            if 'act' not in k and v.size != 0:
+                if data_gen_params["crop_type"] == "ped_overlays":
                     if k=="box_org":
                         full_bbox_sequences = data_cpy['box_org']
                     if k=="box":

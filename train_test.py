@@ -57,7 +57,8 @@ def action_prediction(model_name):
             return cls
     raise Exception('Model {} is not valid!'.format(model_name))
 
-def run(config_file=None, free_memory=True, 
+def run(config_file=None, test_only=False,
+        free_memory=True, 
         compute_time_writing_to_disk=False,
         tune_hyperparameters=False):
     """
@@ -87,8 +88,6 @@ def run(config_file=None, free_memory=True,
     tte = configs['model_opts']['time_to_event'] if isinstance(configs['model_opts']['time_to_event'], int) else \
         configs['model_opts']['time_to_event'][1]
     configs['data_opts']['min_track_size'] = configs['model_opts']['obs_length'] + tte
-
-    #configs['data_opts']['min_track_size'] = 300 # Todo REMOVE!!!
 
     # update model and training options from the config file
     for dataset_idx, dataset in enumerate(model_configs['exp_opts']['datasets']):
@@ -130,17 +129,17 @@ def run(config_file=None, free_memory=True,
             hyperparams = hyperparams_orchestrator.get_next_case()
             if hyperparams:
                 print(f"Training model with hyperparams set {i}: {str(hyperparams[model][submodel])}")
-            #if i < 4:
-            #    continue
             train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
-                             beh_seq_test_cross_dataset, hyperparams)
+                             beh_seq_test_cross_dataset, hyperparams,
+                             test_only=test_only)
 
         
 def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test, 
                      beh_seq_test_cross_dataset, hyperparams,
                      free_memory=True, 
                      compute_time_writing_to_disk=False,
-                     enable_cross_dataset_test=False):
+                     enable_cross_dataset_test=False,
+                     test_only=False):
     
     is_huggingface = configs['model_opts'].get("frameworks") and configs['model_opts']["frameworks"]["hugging_faces"]
 
@@ -158,7 +157,8 @@ def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
         is_huggingface=is_huggingface, 
         free_memory=free_memory,
         train_opts=configs['train_opts'],
-        hyperparams=hyperparams
+        hyperparams=hyperparams,
+        test_only=test_only
     )
     
     if free_memory:
@@ -315,7 +315,8 @@ def set_global_determinism(seed=SEED):
 
 if __name__ == '__main__':
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hc:', ['help', 'config_file'])
+        opts, args = getopt.getopt(sys.argv[1:], 
+                                   'hc:', ['help', 'config_file', 'test_only'])
     except getopt.GetoptError as err:
         print(str(err))
         usage()
@@ -326,6 +327,7 @@ if __name__ == '__main__':
     config_file = None
     model_name = None
     dataset = None
+    test_only = False
 
     for o, a in opts:
         if o in ["-h", "--help"]:
@@ -333,6 +335,9 @@ if __name__ == '__main__':
             sys.exit(2)
         elif o in ['-c', '--config_file']:
             config_file = a
+        elif o in ["--test_only"]:
+            test_only = True
+
 
     # if neither the config file or model name are provided
     if not config_file:
@@ -340,4 +345,7 @@ if __name__ == '__main__':
         usage()
         sys.exit(2)
 
-    run(config_file=config_file)
+    run(
+        config_file=config_file,
+        test_only=test_only
+    )

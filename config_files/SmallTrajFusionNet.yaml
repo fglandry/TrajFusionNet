@@ -2,7 +2,7 @@ model_opts:
   model: SmallTrajFusionNet
   apply_class_weights: True
   generator: True
-  obs_input_type: [scene_context_with_running_ped,
+  obs_input_type: [scene_context_with_ped_overlays,
                    box, veh_speed]
   frameworks:
     pytorch: True

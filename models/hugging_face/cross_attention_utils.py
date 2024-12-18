@@ -24,9 +24,9 @@ from torchvision.transforms import (
     Resize,
 )
 
-from hugging_face.utilities import compute_huggingface_metrics
-from hugging_face.image_utils import get_image_transforms, get_image_item
-from hugging_face.video_utils import get_video_transforms, get_video_item
+from models.hugging_face.utilities import compute_huggingface_metrics
+from models.hugging_face.image_utils import get_image_transforms, get_image_item
+from models.hugging_face.video_utils import get_video_transforms, get_video_item
 from transformers import AutoImageProcessor
 
 

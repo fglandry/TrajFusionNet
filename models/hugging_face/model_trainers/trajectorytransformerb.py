@@ -7,11 +7,11 @@ from transformers import TrainingArguments, Trainer, TimesformerConfig
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-from hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
-from hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, denormalize_trajectory_data
-from hugging_face.timeseries_utils import HuggingFaceTimeSeriesClassificationModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
-from hugging_face.utilities import compute_loss, get_device
-from hugging_face.utils.create_optimizer import get_optimizer
+from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred, load_pretrained_trajectory_transformer
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, denormalize_trajectory_data
+from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.utilities import compute_loss, get_device
+from models.hugging_face.utils.create_optimizer import get_optimizer
 from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 from models.custom_layers_pytorch import CrossAttention, SelfAttention
 
@@ -59,7 +59,7 @@ def get_config_for_timeseries_lib(encoder_input_size, seq_len,
     return config_for_timeseries_lib
 
 
-class TrajectoryTransformerb(HuggingFaceTimeSeriesClassificationModel):
+class TrajectoryTransformerb(HuggingFaceTimeSeriesModel):
 
     def train(self,
               data_train, 
@@ -188,51 +188,8 @@ class TrajectoryTransformerModel(TimeSeriesTransformerPreTrainedModel):
         self.predict_abs_traj = False
         self.use_cross_attention = False
 
-        # Get pretrained trajectory predictor -------------------------------------------
-        config_for_trajectory_predictor = get_config_for_trajectory_pred(
-            encoder_input_size=5, seq_len=15, hyperparams={}, pred_len=60)
-        if self._dataset in ["pie", "combined"]:
-            checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
-            #checkpoint = "data/models/pie/TrajectoryTransformer/14Sep2024-17h38m26s_TE31" # pred_len = first 30
-            #checkpoint = "data/models/pie/TrajectoryTransformer/14Sep2024-12h32m12s_TE29" # pred_len = 50
-            #checkpoint = "data/models/pie/TrajectoryTransformer/14Sep2024-14h01m08s_TE30" # traj pred + box_center_speed
-            #checkpoint = "data/models/pie/TrajectoryTransformer/12Sep2024-20h21m01s_TE26" # normalized_abs_box only
-            #checkpoint = "data/models/pie/TrajectoryTransformer/12Sep2024-20h21m01s_TE26" # pose (10 keypoints)
-            #checkpoint = "data/models/pie/TrajectoryTransformer/11Sep2024-16h45m15s_TE25"  # traj pred + pose (10 keypoints)
-            #checkpoint = "data/models/pie/TrajectoryTransformer/11Sep2024-10h11m19s_TE24" # traj pred + pose
-            #checkpoint = "data/models/pie/TrajectoryTransformer/07Sep2024-13h38m14s_TE23" # traj pred + normalized_abs_box
-            #checkpoint = "data/models/pie/TrajectoryTransformer/05Jul2024-16h28m50s_TE3"
-        elif self._dataset == "jaad_all":
-            checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
-        elif self._dataset == "jaad_beh":
-            checkpoint = "data/models/jaad/TrajectoryTransformer/10Aug2024-11h55m10s_TE23"
-            # checkpoint = "data/models/pie/TrajectoryTransformer/05Jul2024-16h28m50s_TE3"
-        pretrained_model = VanillaTransformerForForecast.from_pretrained(
-            checkpoint,
-            config_for_timeseries_lib=config_for_trajectory_predictor,
-            ignore_mismatched_sizes=True)
-        
-        # Make all layers untrainable
-        for child in pretrained_model.children():
-            for param in child.parameters():
-                param.requires_grad = False
-        self.traj_TF = pretrained_model
+        self.traj_TF = load_pretrained_trajectory_transformer(dataset_name)
 
-        """
-        # Get pretrained trajectory predictor (after TTE) -------------------------------------------
-        config_for_trajectory_predictor = get_config_for_trajectory_pred(
-            encoder_input_size=5, seq_len=15, hyperparams={})
-        pretrained_model = VanillaTransformerForForecast.from_pretrained(
-            "data/models/pie/TrajectoryTransformer/04Aug2024-15h18m04s_TE18",
-            config_for_timeseries_lib=config_for_trajectory_predictor,
-            ignore_mismatched_sizes=True)
-        
-        # Make all layers untrainable
-        for child in pretrained_model.children():
-            for param in child.parameters():
-                param.requires_grad = False
-        self.after_tte_traj_TF = pretrained_model
-        """
 
         if self.predict_abs_traj:
             # Get pretrained trajectory predictor for normalized_abs_box --------------------------------

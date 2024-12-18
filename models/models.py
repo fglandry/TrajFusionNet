@@ -692,11 +692,11 @@ class Static(ActionPredict):
                                 'scene_context_with_segmentation_v2',
                                 'scene_context_with_segmentation_v3',
                                 'scene_context_with_segmentation_v4',
-                                'scene_context_with_running_ped',
-                                'scene_context_with_running_ped_doubled',
+                                'scene_context_with_ped_overlays',
+                                'scene_context_with_ped_overlays_doubled',
                                 'scene_context_with_ped',
-                                'scene_context_with_running_ped_v2',
-                                'scene_context_with_running_ped_v2_doubled'
+                                'scene_context_with_ped_overlays_v2',
+                                'scene_context_with_ped_overlays_v2_doubled'
                                 ]
 
         _data_samples = {}
@@ -722,8 +722,8 @@ class Static(ActionPredict):
         elif feature_type == 'local_context':
             data_gen_params['crop_type'] = 'context'
             data_gen_params['crop_resize_ratio'] = eratio
-        elif 'with_running_ped' in feature_type: # added
-            data_gen_params['crop_type'] = 'remove_running_ped'
+        elif 'with_ped_overlays' in feature_type: # added
+            data_gen_params['crop_type'] = 'ped_overlays'
         elif 'with_ped' in feature_type: # added:
             data_gen_params['crop_type'] = 'keep_ped'
         elif 'scene_context' in feature_type and 'segmentation' not in feature_type: # added

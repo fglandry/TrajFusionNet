@@ -9,10 +9,10 @@ import torch
 from torch.utils.data import Dataset
 from transformers import AutoImageProcessor
 
-from hugging_face.image_utils import convert_img_to_format_used_by_transform, get_image_transforms
+from models.hugging_face.image_utils import convert_img_to_format_used_by_transform, get_image_transforms
 
-from hugging_face.utilities import compute_huggingface_metrics, compute_huggingface_forecast_metrics
-from hugging_face.video_utils import get_video_transforms
+from models.hugging_face.utilities import compute_huggingface_metrics, compute_huggingface_forecast_metrics
+from models.hugging_face.video_utils import get_video_transforms
 from utils.utils import open_pickle_file
 
 def get_timeseries_datasets(data_train, data_val, model, generator, 
@@ -85,7 +85,7 @@ def get_timeseries_datasets(data_train, data_val, model, generator,
 
     return train_dataset, val_dataset, val_transforms_dicts
 
-class HuggingFaceTimeSeriesClassificationModel():
+class HuggingFaceTimeSeriesModel():
     
     def compute_metrics(self, eval_pred):
         if self.forecast:
@@ -300,7 +300,6 @@ class TorchTimeseriesDataset(Dataset):
     def _process_labels(self, index,
                         dataset_statistics=None,
                         normalization_type="z_score"):
-                        # normalization_type="0_1_scaling"
         if not self.generator or (self.generator and self.data_type=='test'):
             label = self.targets[index]
         else:
@@ -311,10 +310,8 @@ class TorchTimeseriesDataset(Dataset):
         
         # If we have forecast labels ...
         if label.shape[-1] > 1:
-            label = transform_trajectory_data(label, normalization_type, 
-                                              dataset_statistics=dataset_statistics,
-                                              forecast=True, label=True)
-            #label = label[30:, :] # todo: remove
+            label = normalize_trajectory_data(label, normalization_type, 
+                                              dataset_statistics=dataset_statistics)
 
         # Extract tte labels from labels variable
         if label.shape[0] > 1:
@@ -574,7 +571,7 @@ def get_trajectory_features_item(index, data, data_type, generator,
 
     # transform trajectory data (normalization)
     if normalization_type:
-        item_norm = transform_trajectory_data(item, normalization_type, 
+        item_norm = normalize_trajectory_data(item, normalization_type, 
                                               dataset_statistics=dataset_statistics)
         item_norm = torch.from_numpy(item_norm)
     else:
@@ -583,85 +580,50 @@ def get_trajectory_features_item(index, data, data_type, generator,
     item = torch.from_numpy(item)
     return item, item_norm
 
-def transform_trajectory_data(item, normalization_type, dataset_statistics=None,
-                              forecast=False, label=False):
+def normalize_trajectory_data(
+        item: np.ndarray, 
+        normalization_type: str, 
+        dataset_statistics=None):
+    """ Transform trajectory data by normalizing values
+    Args:
+        item [np.ndarray]: trajectory sequence data
+        normalization_type [str]: type of normalization (z_score, 0_1_scaling, etc.)
+        dataset_statistics [dict]: dataset statistics
+    Returns:
+        item_norm [np.ndarray]: normalized trajectory sequence data
+    """
+    
     if dataset_statistics:
         if normalization_type=="z_score":
             mean = np.array(dataset_statistics["dataset_means"]["trajectory"])
             std_dev = np.array(dataset_statistics["dataset_std_devs"]["trajectory"])
-            
             item_norm = (item - mean) / std_dev
-            
-            """
-            # TODO: remove
-            item_norm = item.copy()
-            item_norm[:,0:4] = item_norm[:,0:4] - mean[0:4]
-            item_norm[:,-1] = item_norm[:,-1] - mean[-1]
-            item_norm[:,0:4] = item_norm[:,0:4] / std_dev[0:4]
-            item_norm[:,-1] = item_norm[:,-1] / std_dev[-1]
-            """
-
-            # Add 0_1_scaling on top
-            """
-            maxs = np.array(dataset_statistics["dataset_maxs"]["trajectory"])
-            mins = np.array(dataset_statistics["dataset_mins"]["trajectory"])
-            norm_maxs = np.divide((maxs - mean), std_dev)
-            norm_mins = np.divide((mins - mean), std_dev)
-            norm_abs_max = np.maximum(np.abs(norm_maxs), np.abs(norm_mins))
-
-            item_norm = zero_one_scale(item_norm, norm_abs_max, is_label=label)
-            """
-
-        elif normalization_type=="0_1_scaling":
-            maxs = np.array(dataset_statistics["dataset_maxs"]["trajectory"])
-            mins = np.array(dataset_statistics["dataset_mins"]["trajectory"])
-            abs_maxs = np.maximum(maxs, np.abs(mins))
-
-            item_norm = zero_one_scale(item, abs_maxs, is_label=label)
-        elif normalization_type=="min_max":
-            raise Exception
         else:
             raise Exception
     else:
         item_norm = item
 
-    #if np.any(item_norm > 1.1):
-    #    test = 10
-
     return item_norm
 
-def zero_one_scale(item, abs_maxs, is_label,
-                   add_normalized_abs_box=False,
-                   add_box_center_speed=False,
-                   add_pose=False):
-    if is_label:
-        if add_normalized_abs_box:
-            abs_maxs = np.append(abs_maxs[:9], abs_maxs[-1]) # TODO: workaround
-        elif add_box_center_speed:
-            pass
-        elif add_pose:
-            test = 10
-            pass
-        else:
-            abs_maxs = np.append(abs_maxs[0:4], abs_maxs[-1]) # TODO: workaround
-    item_norm = item / abs_maxs
-    return item_norm
 
-def denormalize_trajectory_data(item, normalization_type, dataset_statistics, 
-                                device=None):
+def denormalize_trajectory_data(
+        item, 
+        normalization_type, 
+        dataset_statistics
+    ):
+    """ Denormalize predicted trajectory data
+    Args:
+        item [np.ndarray]: normalized predicted trajectory data
+        normalization_type [str]: type of normalization (z_score, 0_1_scaling, etc.)
+        dataset_statistics [dict]: dataset statistics
+    Returns:
+        item_denormed [np.ndarray]: denormalized trajectory sequence data
+    """
+
     if normalization_type=="z_score":
-        #raise Exception
         mean = np.array(dataset_statistics["dataset_means"]["trajectory"])
         std_dev = np.array(dataset_statistics["dataset_std_devs"]["trajectory"])
         item_denormed = (item * std_dev) + mean
-    elif normalization_type=="0_1_scaling":
-        maxs = np.array(dataset_statistics["dataset_maxs"]["trajectory"])
-        mins = np.array(dataset_statistics["dataset_mins"]["trajectory"])
-        abs_maxs = np.maximum(maxs, np.abs(mins))
-        abs_maxs_tensor = torch.FloatTensor(abs_maxs).to(device)
-        item_denormed = item * abs_maxs_tensor
-    elif normalization_type=="min_max":
-        raise Exception
     else:
         raise Exception
 
@@ -704,6 +666,7 @@ def test_time_series_based_model(
                                           dataset_statistics=dataset_statistics)
 
     trainer_predictions = trainer.predict(test_dataset)
+    
     if save_results:
         logits = trainer_predictions[0]
         probs = softmax(logits, axis=1)

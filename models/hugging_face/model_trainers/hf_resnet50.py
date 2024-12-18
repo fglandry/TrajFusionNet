@@ -3,10 +3,10 @@ import torch
 from transformers import AutoImageProcessor, ResNetForImageClassification
 from transformers import TrainingArguments, Trainer
 
-from hugging_face.image_utils import get_image_transforms, test_image_based_model, HuggingFaceImageClassificationModel, TorchImageDataset
-from hugging_face.utils.create_optimizer import get_optimizer
-from hugging_face.utilities import get_device
-from hugging_face.utils.custom_trainer import CustomTrainer
+from models.hugging_face.image_utils import get_image_transforms, test_image_based_model, HuggingFaceImageClassificationModel, TorchImageDataset
+from models.hugging_face.utils.create_optimizer import get_optimizer
+from models.hugging_face.utilities import get_device
+from models.hugging_face.utils.custom_trainer import CustomTrainer
 
 
 label2id = {}

@@ -7,11 +7,13 @@ import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
-from transformers import PreTrainedModel
+from transformers import PreTrainedModel, TimeSeriesTransformerConfig
+from transformers.trainer_utils import EvalPrediction
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 from transformers.models.timesformer.modeling_timesformer import TimesformerEmbeddings
-from hugging_face.utils.focal_loss import FocalLoss, FocalLoss2
+from models.hugging_face.utils.focal_loss import FocalLoss, FocalLoss2
 
+METRICS_REL_DIR = "models/hugging_face/metrics"
 
 def get_class_labels_info():
     class_labels = ["no_cross", "cross"]
@@ -20,11 +22,11 @@ def get_class_labels_info():
     return label2id, id2label
 
 def compute_huggingface_metrics(eval_pred):
-    metric_acc = load_metric("hugging_face/metrics/accuracy.py")
-    metric_auc = load_metric("hugging_face/metrics/roc_auc.py")
-    metric_f1 = load_metric("hugging_face/metrics/f1.py")
-    metric_precision = load_metric("hugging_face/metrics/precision.py")
-    metric_recall = load_metric("hugging_face/metrics/recall.py")
+    metric_acc = load_metric(f"{METRICS_REL_DIR}/accuracy.py")
+    metric_auc = load_metric(f"{METRICS_REL_DIR}/roc_auc.py")
+    metric_f1 = load_metric(f"{METRICS_REL_DIR}/f1.py")
+    metric_precision = load_metric(f"{METRICS_REL_DIR}/precision.py")
+    metric_recall = load_metric(f"{METRICS_REL_DIR}/recall.py")
     eval_pred_tte = None
 
     if eval_pred.predictions.shape[-1] > 2: # review: multi-task learning
@@ -49,8 +51,8 @@ def compute_huggingface_metrics(eval_pred):
             eval_pred_tte = eval_pred_tte.flatten()
             references_tte = references_tte.flatten()
         
-        metric_mse = load_metric("hugging_face/metrics/mse.py")
-        metric_mae = load_metric("hugging_face/metrics/mae.py")
+        metric_mse = load_metric(f"{METRICS_REL_DIR}/mse.py")
+        metric_mae = load_metric(f"{METRICS_REL_DIR}/mae.py")
     else:
         eval_pred_crossing = eval_pred.predictions
         references = eval_pred.label_ids
@@ -103,16 +105,14 @@ def compute_huggingface_metrics(eval_pred):
         })
     return metrics
 
-def compute_huggingface_forecast_metrics(eval_pred):  
-    metric_mse = load_metric("hugging_face/metrics/mse.py")
-    metric_mae = load_metric("hugging_face/metrics/mae.py")
+def compute_huggingface_forecast_metrics(
+        eval_pred: EvalPrediction
+    ):  
+    metric_mse = load_metric(f"{METRICS_REL_DIR}/mse.py")
+    metric_mae = load_metric(f"{METRICS_REL_DIR}/mae.py")
 
     predictions = eval_pred.predictions
     references = eval_pred.label_ids
-
-    # TODO: remove
-    #predictions = predictions[:,-1,:]
-    #references = references[:,-1,:]
 
     predictions = predictions.flatten()
     references = references.flatten()
@@ -139,18 +139,14 @@ def compute_huggingface_forecast_metrics(eval_pred):
 
 def compute_loss(
         outputs,
-        logits,
-        labels,
-        config,
-        num_labels,
-        return_dict,
-        return_loss_only=False,
-        tte_labels=None,
-        tte_pos_labels=None,
-        #tte_pred=None,
-        #tte_pos_pred=None
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+        config: TimeSeriesTransformerConfig,
+        num_labels: int,
+        return_dict: bool,
+        return_loss_only: bool = False,
         class_w=None,
-        problem_type=""
+        problem_type: str = ""
     ):
     problem_type = config.problem_type if not problem_type else problem_type
     loss = None
@@ -158,75 +154,18 @@ def compute_loss(
         config = dotdict({"problem_type": None})
     if labels is not None:
         if problem_type is None:
-            if num_labels == 1:
-                problem_type = "regression"
-            elif num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+            if num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
                 problem_type = "single_label_classification"
             else:
                 problem_type = "multi_label_classification"
 
-        if problem_type == "regression":
-            loss_fct = MSELoss()
-            if num_labels == 1:
-                loss = loss_fct(logits.squeeze(), labels.squeeze())
-            else:
-                loss = loss_fct(logits, labels)
         elif problem_type == "single_label_classification":
             loss_fct = CrossEntropyLoss(weight=class_w)
-            # loss_fct = FocalLoss(gamma=0.5, weights=class_w)
-            # loss_fct = FocalLoss2(gamma=2, alpha=0.8)
             loss = loss_fct(logits.view(-1, num_labels), labels.view(-1))
-            test = 10
+
         elif problem_type == "multi_label_classification":
             loss_fct = BCEWithLogitsLoss()
             loss = loss_fct(logits, labels)
-
-        elif problem_type == "multi_objectives_tte":
-            #loss_fct = CrossEntropyLoss()
-            #num_labels = 2
-            #logits = logits[:, 0:num_labels]
-            #loss = loss_fct(logits.view(-1, num_labels), labels.view(-1))
-            
-            # Calculate loss for crossing prediction
-            crossing_loss_fct = CrossEntropyLoss()
-            crossing_num_labels = 2
-            crossing_logits = logits[:, 0:crossing_num_labels]
-            crossing_targets = labels.view(-1)
-            crossing_loss = crossing_loss_fct(
-                crossing_logits.view(-1, crossing_num_labels), 
-                crossing_targets)
-            
-            # Calculate loss for tte regression
-            tte_loss_fct = MSELoss()
-            tte_logits = logits[:, 2]
-            tte_preds = tte_logits.squeeze().float()
-            tte_targets = tte_labels.squeeze().float()
-            crossing_indices = crossing_targets == 1
-            preds = tte_preds[crossing_indices]
-            targets = tte_targets[crossing_indices]
-            
-            tte_loss = tte_loss_fct(preds, targets)
-            loss = crossing_loss + 2*tte_loss
-
-        elif problem_type == "multi_objectives_tte_pos":
-
-            # Calculate loss for crossing prediction
-            crossing_loss_fct = CrossEntropyLoss()
-            crossing_num_labels = 2
-            crossing_logits = logits[:, 0:crossing_num_labels]
-            crossing_targets = labels.view(-1)
-            crossing_loss = crossing_loss_fct(
-                crossing_logits.view(-1, crossing_num_labels), 
-                crossing_targets)
-            
-            # Calculate loss for tte regression
-            tte_pos_loss_fct = MSELoss()
-            tte_pos_logits = logits[:, 2:] # tte_pos_pred 
-            tte_pos_preds = torch.flatten(tte_pos_logits).float()
-            tte_pos_targets = torch.flatten(tte_pos_labels).float()
-            tte_pos_loss = tte_pos_loss_fct(tte_pos_preds, tte_pos_targets)
-
-            loss = crossing_loss + tte_pos_loss
 
         elif problem_type == "trajectory":
             loss_fct = MSELoss()
@@ -234,33 +173,6 @@ def compute_loss(
                 loss = loss_fct(logits.squeeze(), labels.squeeze())
             else:
                 loss = loss_fct(logits, labels)
-                """
-                loss_target_1 = loss_fct(logits[:,-1,:], labels[:,-1,:]) # t = 60
-                loss_target_2 = loss_fct(logits[:,29,:], labels[:,29,:]) # t = 30
-                loss_pred_horizon = loss_fct(logits, labels)
-                loss = 0.5*loss_pred_horizon + 0.25*loss_target_1 + 0.25*loss_target_2
-                """
-                """
-                loss_target_1 = loss_fct(logits[:,-1,:], labels[:,-1,:]) # t = 60
-                loss_target_2 = loss_fct(logits[:,29,:], labels[:,29,:]) # t = 30
-                loss_pred_horizon = loss_fct(logits, labels)
-                loss = 0.5*loss_pred_horizon + 0.25*loss_target_1 + 0.25*loss_target_2
-                """
-                """
-                loss_pre_pred_horizon = loss_fct(logits[:,0:30,:], labels[:,0:30,:])
-                loss_pred_horizon = loss_fct(logits[:,30:,:], labels[:,30:,:])
-                loss = 0.33*loss_pre_pred_horizon + 0.67*loss_pred_horizon
-                """
-                """
-                traj_logits = logits[:,:-1,:]
-                traj_labels = labels[:,:-1,:]
-                objective_logit = logits[:,-1,:]
-                objective_label = labels[:,-1,:]
-                loss_traj = loss_fct(traj_logits, traj_labels)
-                loss_objective = loss_fct(objective_logit, objective_label)
-                loss = loss_traj + loss_objective
-                """
-            
             
     if return_loss_only:
         return loss

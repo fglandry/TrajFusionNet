@@ -1,6 +1,6 @@
 model_opts:
   model: SmallVAN
-  obs_input_type: [scene_context_with_running_ped]
+  obs_input_type: [scene_context_with_ped_overlays]
   apply_class_weights: True
   generator: True
   frameworks:

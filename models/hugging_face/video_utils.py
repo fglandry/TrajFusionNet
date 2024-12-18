@@ -25,7 +25,7 @@ from torchvision.transforms import (
     Resize,
 )
 
-from hugging_face.utilities import compute_huggingface_metrics
+from models.hugging_face.utilities import compute_huggingface_metrics
 
 
 class HuggingFaceVideoClassificationModel():

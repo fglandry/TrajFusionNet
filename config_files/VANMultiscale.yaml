@@ -3,8 +3,8 @@ model_opts:
   apply_class_weights: True
   generator: True
   obs_input_type: [
-                   scene_context_with_running_ped_v2,
-                   scene_context_with_running_ped_v2_doubled,
+                   scene_context_with_ped_overlays_v2,
+                   scene_context_with_ped_overlays_v2_doubled,
                    box, veh_speed] # box_height, normalized_abs_box, box_center_speed
   frameworks:
     pytorch: True
