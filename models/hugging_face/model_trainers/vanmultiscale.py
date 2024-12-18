@@ -14,11 +14,11 @@ from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
 import matplotlib.pyplot as plt 
 
-from hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, HuggingFaceTimeSeriesClassificationModel, TimeSeriesLibraryConfig
-from hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast
-from hugging_face.model_trainers.trajectorytransformerb import get_config_for_trajectory_pred
-from hugging_face.utilities import compute_loss, get_class_labels_info, get_device
-from hugging_face.utils.create_optimizer import get_optimizer
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig
+from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast
+from models.hugging_face.model_trainers.trajectorytransformerb import get_config_for_trajectory_pred
+from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
+from models.hugging_face.utils.create_optimizer import get_optimizer
 from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 from libs.time_series_library.models_tsl.TrajContextTF import Model as TrajContextTransformerTSLModel
 from models.custom_layers_pytorch import SelfAttention
@@ -26,7 +26,7 @@ from models.custom_layers_pytorch import SelfAttention
 NET_INNER_DIM = 40
 DROPOUT = 0.1
 
-class VanMultiscale(HuggingFaceTimeSeriesClassificationModel):
+class VanMultiscale(HuggingFaceTimeSeriesModel):
     """ Base Transformer with cross attention between modalities
     """
 

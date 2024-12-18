@@ -5,9 +5,9 @@ from scipy.special import softmax
 import torch
 from torch.utils.data import Dataset
 
-from hugging_face.utilities import compute_huggingface_metrics
-from hugging_face.image_utils import convert_img_to_format_used_by_transform, get_image_transforms
-from hugging_face.video_utils import get_video_transforms
+from models.hugging_face.utilities import compute_huggingface_metrics
+from models.hugging_face.image_utils import convert_img_to_format_used_by_transform, get_image_transforms
+from models.hugging_face.video_utils import get_video_transforms
 from transformers import AutoImageProcessor
 
 

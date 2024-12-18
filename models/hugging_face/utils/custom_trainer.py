@@ -1,7 +1,7 @@
 
 from transformers import Trainer
 
-from hugging_face.utilities import compute_loss as _compute_loss
+from models.hugging_face.utilities import compute_loss as _compute_loss
 
 
 class CustomTrainer(Trainer):

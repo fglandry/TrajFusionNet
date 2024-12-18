@@ -7,11 +7,11 @@ from transformers import TrainingArguments, Trainer, TimesformerConfig
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-from hugging_face.model_trainers.smalltrajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
-from hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, denormalize_trajectory_data
-from hugging_face.timeseries_utils import HuggingFaceTimeSeriesClassificationModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
-from hugging_face.utilities import compute_loss, get_device
-from hugging_face.utils.create_optimizer import get_optimizer
+from models.hugging_face.model_trainers.smalltrajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, denormalize_trajectory_data
+from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.utilities import compute_loss, get_device
+from models.hugging_face.utils.create_optimizer import get_optimizer
 from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 from models.custom_layers_pytorch import CrossAttention, SelfAttention
 
@@ -59,7 +59,7 @@ def get_config_for_timeseries_lib(encoder_input_size, seq_len,
     return config_for_timeseries_lib
 
 
-class SmallTrajectoryTransformerb(HuggingFaceTimeSeriesClassificationModel):
+class SmallTrajectoryTransformerb(HuggingFaceTimeSeriesModel):
 
     def train(self,
               data_train, 

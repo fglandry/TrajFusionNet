@@ -18,7 +18,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
 
 from models.custom_layers import CustomAttention, T2V
-from utils.action_predict_utils.running_ped import RunningPed
+from utils.action_predict_utils.trajectory_overlays import TrajectoryOverlays
 from utils.action_predict_utils.sequences import compute_sequences
 from utils.data_load import get_generator, get_static_context_data
 from utils.dataset_statistics import get_dataset_statistics
@@ -249,8 +249,8 @@ class ActionPredict(object):
                             cropped_image = img_features[bbox[1]:bbox[3], bbox[0]:bbox[2], :]
                             img_features = img_pad(cropped_image, mode='pad_resize', size=target_dim[0])
                             show_image(img_features) if debug else None
-                        elif 'remove_running_ped' in crop_type:
-                            img_features = RunningPed(model_opts).compute_running_ped(
+                        elif 'ped_overlays' in crop_type:
+                            img_features = TrajectoryOverlays(model_opts).compute_trajectory_overlays(
                                 img_data, feature_type,
                                 full_bbox_sequences, full_rel_bbox_seq, 
                                 full_veh_speed, i)
@@ -908,8 +908,8 @@ class ActionPredict(object):
         elif 'surround' in feature_type:
             data_gen_params['crop_type'] = 'surround'
             data_gen_params['crop_resize_ratio'] = eratio
-        elif 'with_running_ped' in feature_type: # added
-            data_gen_params['crop_type'] = 'remove_running_ped'
+        elif 'with_ped_overlays' in feature_type: # added
+            data_gen_params['crop_type'] = 'ped_overlays'
         elif 'with_ped' in feature_type: # added:
             data_gen_params['crop_type'] = 'keep_ped'
         elif 'scene_context' in feature_type and 'segmentation' not in feature_type: # added
@@ -1263,23 +1263,12 @@ class ActionPredict(object):
             return SGD
         elif optimizer.lower() == 'rmsprop':
             return RMSprop
-
-    """
-    def free_train_and_val_memory(self, data_train, data_val):
-        data_train.clear()
-        del data_train
-        try:
-            data_val.clear()
-        except Exception as e:
-            pass
-        del data_val
-    """
         
     def get_huggingface_model(self, model_opts):
         model_str = model_opts["model"]
-        model_trainers_module = getattr(
-            __import__(f"hugging_face.model_trainers.{model_str.lower()}"),
-            "model_trainers")
+        model_trainers_module = getattr(getattr(
+            __import__(f"models.hugging_face.model_trainers.{model_str.lower()}"),
+            "hugging_face"), "model_trainers")
         model_module = getattr(
             model_trainers_module,
             model_str.lower())
@@ -1297,7 +1286,8 @@ class ActionPredict(object):
               is_huggingface=False,
               free_memory=False,
               train_opts=None,
-              hyperparams=None):
+              hyperparams=None,
+              test_only=False):
         """
         Trains the models
         Args:
@@ -1344,7 +1334,8 @@ class ActionPredict(object):
                     model_opts=model_opts,
                     train_opts=train_opts,
                     hyperparams=hyperparams,
-                    class_w=class_w)
+                    class_w=class_w,
+                    test_only=test_only)
               
             if free_memory: # to be tested
                 free_train_and_val_memory(data_train, data_val)
@@ -1442,7 +1433,9 @@ class ActionPredict(object):
             test_data = complete_data["data"]
             model = self.get_huggingface_model(model_opts)
             return model.test(test_data, training_result, model_path, 
-                              generator=self._generator, complete_data=complete_data)
+                              generator=self._generator, 
+                              complete_data=complete_data,
+                              dataset_name=model_opts["dataset_full"])
             
         with open(os.path.join(model_path, 'configs.yaml'), 'r') as fid:
             opts = yaml.safe_load(fid)

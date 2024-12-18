@@ -18,11 +18,11 @@ from torchvision.models import resnet18 #vgg13
 
 import matplotlib.pyplot as plt 
 
-from hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
-from hugging_face.model_trainers.trajectorytransformerb import TrajectoryTransformerModel, get_config_for_timeseries_lib as get_config_for_trajectory_classification
-from hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, transform_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesClassificationModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
-from hugging_face.utilities import compute_loss, get_class_labels_info, get_device
-from hugging_face.utils.create_optimizer import get_optimizer, override_create_optimizer
+from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
+from models.hugging_face.model_trainers.trajectorytransformerb import TrajectoryTransformerModel, get_config_for_timeseries_lib as get_config_for_trajectory_classification
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, normalize_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
+from models.hugging_face.utils.create_optimizer import get_optimizer, override_create_optimizer
 from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 from libs.time_series_library.models_tsl.Tokengt import Model as TokengtTransformer
 from libs.time_series_library.models_tsl.TrajContextTF import Model as TrajContextTF
@@ -32,7 +32,7 @@ from models.custom_layers_pytorch import CrossAttention, SelfAttention
 NET_INNER_DIM = 40
 DROPOUT = 0.1
 
-class MultiBranchGraphTFV6(HuggingFaceTimeSeriesClassificationModel):
+class MultiBranchGraphTFV6(HuggingFaceTimeSeriesModel):
     """ Base Transformer with cross attention between modalities
     """
 

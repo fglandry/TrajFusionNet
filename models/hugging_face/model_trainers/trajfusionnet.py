@@ -10,19 +10,18 @@ from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTr
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
 
-from hugging_face.model_trainers.smalltrajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
-from hugging_face.model_trainers.smalltrajectorytransformerb import TrajectoryTransformerModel, get_config_for_timeseries_lib as get_config_for_trajectory_classification
-from hugging_face.model_trainers.smallvan import VanEncodingsModel, get_van_image_processor_and_config
-from hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, transform_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesClassificationModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
-from hugging_face.utilities import compute_loss, get_class_labels_info, get_device
-from hugging_face.utils.create_optimizer import get_optimizer
+from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
+from models.hugging_face.model_trainers.trajectorytransformerb import TrajectoryTransformerModel, get_config_for_timeseries_lib as get_config_for_trajectory_classification
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, normalize_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
+from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.custom_layers_pytorch import SelfAttention
 
-NET_INNER_DIM = 256
+NET_INNER_DIM = 512
 NET_OUTER_DIM = 40
 DROPOUT = 0.1
 
-class SmallTrajFusionNet(HuggingFaceTimeSeriesClassificationModel):
+class TrajFusionNet(HuggingFaceTimeSeriesModel):
     """ Base Transformer with cross attention between modalities
     """
 
@@ -40,8 +39,6 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesClassificationModel):
               *args, **kwargs):
         print("Starting model loading for model Vanilla Transformer ===========================")
 
-        alternate_branch_training = True
-        
         # Get parameters used by time series library model
         timeseries_element = data_train['data'][0][0][0][-1]
         encoder_input_size = timeseries_element.shape[-1]
@@ -57,8 +54,7 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesClassificationModel):
                                                     config_for_timeseries_lib,
                                                     class_w=class_w,
                                                     dataset_statistics=dataset_statistics,
-                                                    dataset_name=kwargs["model_opts"]["dataset_full"],
-                                                    data_train=data_train)
+                                                    dataset_name=kwargs["model_opts"]["dataset_full"])
         summary(model)
 
         # Get datasets
@@ -87,9 +83,8 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesClassificationModel):
         )
 
         optimizer, lr_scheduler = get_optimizer(self, model, args, 
-            train_dataset, val_dataset, data_train, train_opts, warmup_ratio,
-            alternate_training=False)
-        
+            train_dataset, val_dataset, data_train, train_opts, warmup_ratio)
+
         trainer = Trainer(
             model,
             args,
@@ -104,77 +99,12 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesClassificationModel):
         # Train model
         print("Starting training of model ===========================")
         
-        initial_weights = copy.deepcopy(model.state_dict())
-
-        #trainer.train()
-
-        best_trainer = trainer
-        best_scenario_in_second_round = False
-
-        if alternate_branch_training:
-            # Reset weights and keep training model with learning rate of VAN
-            # branch set to 0 + weights of embed layer set to 0, during first 5 epochs
-            model.load_state_dict(initial_weights)
-            with torch.no_grad(): 
-                model.van_output_embed.weight.zero_()
-                model.van_output_embed.bias.zero_()
-
-            for i in range(epochs):
-                #if i == 0:
-                #    model.load_state_dict(initial_weights)
-                #    # trainer.model.load_state_dict(initial_weights)
-                
-                optimizer, lr_scheduler = get_optimizer(self, model, args, 
-                    train_dataset, val_dataset, data_train, train_opts, warmup_ratio, 
-                    alternate_training=True, epoch_index=i+1)
-                
-                trainer = self._get_trainer(model, args, train_dataset, 
-                                            val_dataset, optimizer, lr_scheduler)
-                trainer.args.num_train_epochs = 1
-                
-                #trainer.optimizer = optimizer
-                #trainer.lr_scheduler = lr_scheduler
-
-                trainer.train()
-                metric = best_trainer.state.best_metric if best_trainer.state.best_metric is not None else 0.0
-                if trainer.state.best_metric > metric:
-                    best_trainer = trainer # copy.copy()
-                    best_scenario_in_second_round = True
-
-            if not best_scenario_in_second_round:
-                model.load_state_dict(initial_weights)
-                optimizer, lr_scheduler = get_optimizer(self, model, args, 
-                    train_dataset, val_dataset, data_train, train_opts, warmup_ratio, 
-                    alternate_training=False)
-                
-                trainer = self._get_trainer(model, args, train_dataset, 
-                                            val_dataset, optimizer, lr_scheduler)
-                trainer.args.num_train_epochs = epochs
-
-                trainer.train()
-                best_trainer = trainer
-
-        
-        print(f"Best AUC metric: {best_trainer.state.best_metric}")
+        train_results = trainer.train()
         
         return {
-            "trainer": best_trainer,
+            "trainer": trainer,
             "val_transform": val_transforms_dicts
         }
-    
-    def _get_trainer(self, model, args, train_dataset, 
-                     val_dataset, optimizer, lr_scheduler):
-        trainer = Trainer(
-            model,
-            args,
-            train_dataset=train_dataset,
-            eval_dataset=val_dataset,
-            tokenizer=None,
-            compute_metrics=self.compute_metrics,
-            data_collator=self.collate_fn,
-            optimizers=(optimizer, lr_scheduler),
-        )
-        return trainer
 
     def test(self,
              test_data,
@@ -201,8 +131,7 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
                  config_for_timeseries_lib=None,
                  class_w=None,
                  dataset_statistics=None,
-                 dataset_name=None,
-                 data_train=None
+                 dataset_name=None
         ):
         super().__init__(config_for_huggingface, config_for_timeseries_lib)
         self._device = get_device()
@@ -216,32 +145,32 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
         # MODEL PARAMETERS ==========================================
 
         # Classifier head
-        self.van_output_size = NET_OUTER_DIM
+        self.van_output_size = 256
         self.max_classifier_hidden_size = NET_OUTER_DIM
         self.max_classifier_hidden_size_van = NET_INNER_DIM
-        #self.fc1_neurons = 1 * 3 * self.max_classifier_hidden_size  + 40 # 2 * 40
-        self.fc1_neurons = 160
+        self.fc1_neurons = 80 # 1 * 3 * self.max_classifier_hidden_size  + 40 # 2 * 40
         self.fc2_neurons = 40
         
         # Get pretrained VAN Model -------------------------------------------
         label2id, id2label = get_class_labels_info()
         if self._dataset in ["pie", "combined"]:
-            checkpoint1 = "data/models/pie/SmallVAN/24Nov2024-17h49m37s_SM12"
+            checkpoint1 = "data/models/pie/VAN/14Oct2024-00h13m09s_VA10"
+            checkpoint2 = "data/models/pie/VAN/14Oct2024-10h37m58s_VA11"
+            #checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
+            #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
         elif self._dataset == "jaad_all":
+            checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
             checkpoint1 = "data/models/jaad/SmallVAN/17Nov2024-21h40m29s_SM7"
+            checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
         elif self._dataset == "jaad_beh":
-            checkpoint1 = "data/models/jaad/SmallVAN/19Nov2024-21h12m39s_SM10"
+            checkpoint1 = "data/models/jaad/VAN/13Oct2024-20h16m00s_VA8"
+            checkpoint2 = "data/models/jaad/VAN/13Oct2024-20h56m50s_VA9"
         
         self.use_separate_vans = True
         if self.use_separate_vans:
 
-            #image_processor, config = get_van_image_processor_and_config(
-            #    data_train, dataset_statistics
-            #)
-
             pretrained_model = VanModel.from_pretrained(
                 checkpoint1,
-                #config=config,
                 id2label=id2label,
                 label2id=label2id,
                 ignore_mismatched_sizes=True)
@@ -252,16 +181,28 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
                     param.requires_grad = False
             self.van1 = pretrained_model
 
+            pretrained_model = VanModel.from_pretrained(
+                checkpoint2,
+                id2label=id2label,
+                label2id=label2id,
+                ignore_mismatched_sizes=True)
+            
+            # Make all layers untrainable
+            for child in pretrained_model.children():
+                for param in child.parameters():
+                    param.requires_grad = False
+            self.van2 = pretrained_model
+
         # Get pretrained trajectory classifier -------------------------------------------
         config_for_trajectory_predictor = get_config_for_trajectory_classification(
             encoder_input_size=5, seq_len=75, hyperparams={})
         if self._dataset in ["pie", "combined"]:
-            checkpoint = "data/models/pie/SmallTrajectoryTransformerb/17Nov2024-18h47m24s_SM5"
+            checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
         elif self._dataset == "jaad_all":
-            checkpoint = "data/models/jaad/SmallTrajectoryTransformerb/17Nov2024-22h36m59s_SM2b"
+            checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
+            #checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
         elif self._dataset == "jaad_beh":
-            checkpoint = "data/models/jaad/SmallTrajectoryTransformerb/17Nov2024-22h36m59s_SM2b"
-            # checkpoint = "data/models/jaad/SmallTrajectoryTransformerb/19Nov2024-20h27m53s_SM9"
+            checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
         pretrained_model = TrajectoryTransformerModel.from_pretrained(
             checkpoint,
             config_for_timeseries_lib=config_for_trajectory_predictor,
@@ -302,7 +243,7 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
     ) -> Union[Tuple, ImageClassifierOutputWithNoAttention]:
 
         add_previous_context = False
-        combine_branches_with_attention = True
+        combine_branches_with_attention = False
         combine_branches_with_attention_van = False
         return_dict = self._on_entry(output_hidden_states, return_dict)
 
@@ -361,6 +302,8 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
         )
 
         # Concatenate trajectory and context branches ========================================
+
+        # van_output_projected = self._project(van_output, self.projection_van)
 
         # Add branch-based self-attention ====================================================
         if combine_branches_with_attention:

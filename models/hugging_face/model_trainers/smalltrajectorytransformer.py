@@ -7,10 +7,10 @@ from transformers import TrainingArguments, Trainer, TimesformerConfig
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-from hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, denormalize_trajectory_data
-from hugging_face.timeseries_utils import HuggingFaceTimeSeriesClassificationModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
-from hugging_face.utilities import compute_loss, get_device
-from hugging_face.utils.create_optimizer import get_optimizer
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, denormalize_trajectory_data
+from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.utilities import compute_loss, get_device
+from models.hugging_face.utils.create_optimizer import get_optimizer
 from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 #from libs.time_series_library.models_tsl.TimesNet import Model as VanillaTransformerTSLModel
 #from libs.time_series_library.models_tsl.Nonstationary_Transformer import Model as VanillaTransformerTSLModel
@@ -38,14 +38,14 @@ def get_config_for_timeseries_lib(encoder_input_size, seq_len,
         "freq": "h", # freq for time features encoding; note: not used in classification task by vanilla transformer model
         "dropout": 0.1, # default,
         "factor": 1, # attn factor; note: not used by vanilla transformer model
-        "n_heads": hyperparams.get("n_heads", 4), # num of heads
-        "d_ff": hyperparams.get("d_ff", 512), # dimension of fcn (or 2048)
+        "n_heads": hyperparams.get("n_heads", 2), # num of heads
+        "d_ff": hyperparams.get("d_ff", 256), # dimension of fcn (or 2048)
         "activation": "gelu",
-        "e_layers": hyperparams.get("e_layers", 8), # num of encoder layers (or 3)
+        "e_layers": hyperparams.get("e_layers", 2), # num of encoder layers (or 3)
         "seq_len": seq_len, # input sequence length
         "num_class": 40, # number of neurons in last Linear layer at the end of model
         "dec_in": encoder_input_size, # decoder input size
-        "d_layers": hyperparams.get("d_layers", 8), # num of decoder layers
+        "d_layers": hyperparams.get("d_layers", 2), # num of decoder layers
         # ---------------------------------------------------------------------------------
         "label_len": 15, # section shared by encoder and decoder
         "num_kernels": 6, # Timesnet - for Inception
@@ -62,7 +62,7 @@ def get_config_for_timeseries_lib(encoder_input_size, seq_len,
     return config_for_timeseries_lib
 
 
-class TrajectoryTransformer(HuggingFaceTimeSeriesClassificationModel):
+class SmallTrajectoryTransformer(HuggingFaceTimeSeriesModel):
 
     def train(self,
               data_train, 

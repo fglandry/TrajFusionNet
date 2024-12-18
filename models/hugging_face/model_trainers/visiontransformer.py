@@ -2,10 +2,10 @@ import torch
 from transformers import ViTImageProcessor, ViTForImageClassification
 from transformers import TrainingArguments, Trainer
 
-from hugging_face.image_utils import get_vit_image_transforms, test_image_based_model, HuggingFaceImageClassificationModel, TorchImageDataset
-from hugging_face.utils.create_optimizer import get_optimizer
-from hugging_face.utils.custom_trainer import CustomTrainer
-from hugging_face.utilities import compute_loss as _compute_loss, get_device
+from models.hugging_face.image_utils import get_vit_image_transforms, test_image_based_model, HuggingFaceImageClassificationModel, TorchImageDataset
+from models.hugging_face.utils.create_optimizer import get_optimizer
+from models.hugging_face.utils.custom_trainer import CustomTrainer
+from models.hugging_face.utilities import compute_loss as _compute_loss, get_device
 
 label2id = {}
 

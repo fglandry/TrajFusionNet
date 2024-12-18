@@ -7,8 +7,8 @@ from transformers import TrainingArguments, Trainer
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-from hugging_face.timeseries_utils import test_time_series_based_model, HuggingFaceTimeSeriesClassificationModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
-from hugging_face.utilities import compute_loss
+from models.hugging_face.timeseries_utils import test_time_series_based_model, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.utilities import compute_loss
 from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 #from libs.time_series_library.models_tsl.TimesNet import Model as TimesnetModel
 #from libs.time_series_library.models_tsl.FEDformer import Model as FEDformer
@@ -64,7 +64,7 @@ def get_config_for_timeseries_lib(encoder_input_size, seq_len):
     return config_for_timeseries_lib
 
 
-class VanillaTransformer(HuggingFaceTimeSeriesClassificationModel):
+class VanillaTransformer(HuggingFaceTimeSeriesModel):
 
     def train(self,
               data_train, 

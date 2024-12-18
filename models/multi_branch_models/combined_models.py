@@ -664,73 +664,7 @@ class BaseTransformerEncoderDecoderV1(BaseTransformerCrossAttentionV2,
                  **kwargs):
         super().__init__(**kwargs)
 
-class MultiBranchLSTMV1(BaseTransformerCrossAttentionV2, 
-                        ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchLSTMV2(BaseTransformerCrossAttentionV2, 
-                        ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchLSTMV3(BaseTransformerCrossAttentionV2, 
-                        ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV1(BaseTransformerCrossAttentionV2, 
-                        ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV2(BaseTransformerCrossAttentionV2, 
-                        ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV3(BaseTransformerCrossAttentionV2, 
-                           ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV3b(BaseTransformerCrossAttentionV2, 
-                           ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV4(BaseTransformerCrossAttentionV2, 
-                           ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV5(BaseTransformerCrossAttentionV2, 
-                           ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV5(BaseTransformerCrossAttentionV2, 
-                           ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV6(BaseTransformerCrossAttentionV2, 
-                           ActionPredict):
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-
-class MultiBranchGraphTFV7(BaseTransformerCrossAttentionV2, 
+class TrajFusionNet(BaseTransformerCrossAttentionV2, 
                            ActionPredict):
     def __init__(self,
                  **kwargs):
