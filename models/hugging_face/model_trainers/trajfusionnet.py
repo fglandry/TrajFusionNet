@@ -64,7 +64,6 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             get_image_transform=True, img_model_config=None,
             dataset_statistics=dataset_statistics, ignore_sem_map=True)
 
-        warmup_ratio = 0.1
         args = TrainingArguments(
             output_dir=model_path,
             remove_unused_columns=False,
@@ -74,7 +73,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             per_device_train_batch_size=batch_size, 
             per_device_eval_batch_size=batch_size,
             num_train_epochs = epochs,
-            warmup_ratio=warmup_ratio,
+            warmup_ratio=0.1,
             logging_steps=10,
             load_best_model_at_end=True,
             metric_for_best_model="auc",
@@ -160,7 +159,6 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
             #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
         elif self._dataset == "jaad_all":
             checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
-            checkpoint1 = "data/models/jaad/SmallVAN/17Nov2024-21h40m29s_SM7"
             checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
         elif self._dataset == "jaad_beh":
             checkpoint1 = "data/models/jaad/VAN/13Oct2024-20h16m00s_VA8"

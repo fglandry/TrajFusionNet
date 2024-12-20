@@ -159,7 +159,7 @@ def compute_loss(
             else:
                 problem_type = "multi_label_classification"
 
-        elif problem_type == "single_label_classification":
+        if problem_type == "single_label_classification":
             loss_fct = CrossEntropyLoss(weight=class_w)
             loss = loss_fct(logits.view(-1, num_labels), labels.view(-1))
 

@@ -1000,7 +1000,7 @@ class ActionPredict(object):
                 raise Exception("Not implemented in this repo")
             elif d_type == 'scene_graph':
                 raise Exception("Not implemented in this repo")
-            elif d_type == 'scene_graph_doubled':
+            elif d_type == 'scene_graph_previous':
                 raise Exception("Not implemented in this repo")
             else:
                 features = data[d_type]
@@ -1413,9 +1413,10 @@ class ActionPredict(object):
     # Test Functions
     def test(self, data_test, model_path='', 
              debug=False, 
-             is_hugginface=False, 
+             is_huggingface=False, 
              training_result=None,
-             model_opts=None):
+             model_opts=None,
+             test_only=None):
         """
         Evaluates a given model
         Args:
@@ -1423,19 +1424,20 @@ class ActionPredict(object):
             model_path: Path to folder containing the model and options
             save_results: Save output of the model for visualization and analysis
             model_opts: options related to the model, only needed when it is a huggingface model
+            test_only [bool]: is set to True, model will not be trained, only tested
         Returns:
             Evaluation metrics
         """
 
-        # Todo: do something better
-        if is_hugginface:
+        if is_huggingface:
             complete_data = self.get_data('test', data_test, {**model_opts, 'batch_size': 1})
             test_data = complete_data["data"]
             model = self.get_huggingface_model(model_opts)
             return model.test(test_data, training_result, model_path, 
                               generator=self._generator, 
                               complete_data=complete_data,
-                              dataset_name=model_opts["dataset_full"])
+                              dataset_name=model_opts["dataset_full"],
+                              test_only=test_only)
             
         with open(os.path.join(model_path, 'configs.yaml'), 'r') as fid:
             opts = yaml.safe_load(fid)

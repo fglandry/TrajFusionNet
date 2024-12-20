@@ -693,10 +693,8 @@ class Static(ActionPredict):
                                 'scene_context_with_segmentation_v3',
                                 'scene_context_with_segmentation_v4',
                                 'scene_context_with_ped_overlays',
-                                'scene_context_with_ped_overlays_doubled',
+                                'scene_context_with_ped_overlays_previous',
                                 'scene_context_with_ped',
-                                'scene_context_with_ped_overlays_v2',
-                                'scene_context_with_ped_overlays_v2_doubled'
                                 ]
 
         _data_samples = {}
