@@ -170,23 +170,24 @@ def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
     # test and evaluate the model
     acc, auc, f1, precision, recall = method_class.test(
         beh_seq_test, saved_files_path, 
-        is_hugginface=is_huggingface,
+        is_huggingface=is_huggingface,
         training_result=saved_files_path,
-        model_opts=model_opts)
+        model_opts=model_opts,
+        test_only=test_only)
     
     if enable_cross_dataset_test and beh_seq_test_cross_dataset:
         if type(beh_seq_test_cross_dataset) is list: # model was trained on combined dataset
             print("Testing on JAAD dataset...")
             method_class.test(
                 beh_seq_test_cross_dataset[0], saved_files_path, 
-                is_hugginface=is_huggingface,
+                is_huggingface=is_huggingface,
                 training_result=saved_files_path,
                 model_opts=model_opts
             )
             print("Testing on PIE dataset...")
             method_class.test(
                 beh_seq_test_cross_dataset[1], saved_files_path, 
-                is_hugginface=is_huggingface,
+                is_huggingface=is_huggingface,
                 training_result=saved_files_path,
                 model_opts=model_opts
             )
@@ -200,7 +201,7 @@ def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
             print(f"Testing on {model_opts['dataset']} dataset...")
             method_class.test(
                 beh_seq_test_cross_dataset, saved_files_path, 
-                is_hugginface=is_huggingface,
+                is_huggingface=is_huggingface,
                 training_result=saved_files_path,
                 model_opts=model_opts
             )

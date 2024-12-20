@@ -9,31 +9,43 @@ from typing import Optional, Union, Tuple
 from transformers import AutoImageProcessor
 from transformers import TrainingArguments, Trainer
 from transformers.models.van.modeling_van import VanEncoder
-from transformers import VanForImageClassification, VanPreTrainedModel, VanConfig
+from transformers import VanConfig, VanModel, VanPreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPoolingAndNoAttention, ImageClassifierOutputWithNoAttention
 
 from models.hugging_face.image_utils import test_image_based_model, HuggingFaceImageClassificationModel, TorchImageDataset
 from models.hugging_face.utils.create_optimizer import get_optimizer
-from models.hugging_face.utilities import compute_loss, get_device
+from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
 from models.hugging_face.utils.custom_trainer import CustomTrainer
+from utils.data_load import DataGenerator
+
 
 class VAN(HuggingFaceImageClassificationModel):
 
     def train(self,
-              data_train, 
-              data_val,
-              batch_size, 
-              epochs,
-              model_path,
-              *args,  
-              generator=False,
-              train_opts=None,
-              dataset_statistics=None,
-              class_w=None,
-              **kwrags
+              data_train: dict, 
+              data_val: DataGenerator,
+              batch_size: int,
+              epochs: int,
+              model_path: str, 
+              *args,
+              train_opts: dict = None,  
+              generator: bool = False,
+              dataset_statistics: dict = None,
+              class_w = list,
+              test_only: bool = False,
+              **kwargs
         ):
-        
-        
+        """ Train model
+        Args:
+            data_train [dict]: training data (data_train['data'][0] contains the generator)
+            data_val [DataGenerator]: validation data
+            model_path [str]: path where the model will be saved
+            train_opts [str]: training options (includes learning rate)
+            dataset_statistics [dict]: contains dataset statistics such as avg / std dev per feature
+            class_w [list]: class weights
+            test_only [bool]: is set to True, model will not be trained, only tested
+        """
+    
         print("Starting model loading for model VAN: Visual Attention Network ===========================")
 
         self._device = get_device()
@@ -42,29 +54,12 @@ class VAN(HuggingFaceImageClassificationModel):
             data_train, dataset_statistics
         )
 
-        #model_ckpt = "Visual-Attention-Network/van-base"
-        #model_ckpt = "Visual-Attention-Network/van-large"
-        #model_ckpt = "Visual-Attention-Network/van-small"
-        model_ckpt = "Visual-Attention-Network/van-tiny"
-
+        model_ckpt = "Visual-Attention-Network/van-base"
         model = VanEncodingsForImageClassification.from_pretrained(
             model_ckpt,
             config=config,
-            ignore_mismatched_sizes = True)
-        summary(model)
-        """
-        model = VanForImageClassification.from_pretrained(
-            "data/models/jaad/VAN/27Aug2023-12h11m53s_ENC2",
-            id2label=id2label,
-            label2id=label2id,
             ignore_mismatched_sizes=True)
-        # Make all layers untrainable
-        for idx, child in enumerate(model.children()):
-            if idx == 1:
-                continue
-            for param in child.parameters():
-                param.requires_grad = False
-        """
+        summary(model)
 
         if not generator:
             train_dataset = TorchImageDataset(
@@ -85,42 +80,23 @@ class VAN(HuggingFaceImageClassificationModel):
                 generator=generator, image_processor=image_processor, num_channels=config.num_channels
             )
 
-        warmup_ratio = 0.1
         args = TrainingArguments(
             output_dir=model_path,
             remove_unused_columns=False,
             evaluation_strategy="epoch",
             save_strategy="epoch",
-            learning_rate=5e-5,
+            learning_rate=train_opts["lr"],
             per_device_train_batch_size=batch_size, 
             per_device_eval_batch_size=batch_size,
-            # gradient_accumulation_steps=4,
             num_train_epochs=epochs,
             warmup_ratio=0.1,
             logging_steps=10,
             load_best_model_at_end=True,
             metric_for_best_model="auc",
             push_to_hub=False,
-            max_steps=-1, # added
-            # device_map='auto' // not supported
+            max_steps=-1
         )
 
-        #optimizer, lr_scheduler = get_optimizer(self, model, args, 
-        #    train_dataset, val_dataset, data_train, train_opts, warmup_ratio)
-
-        """
-        trainer = CustomTrainer(
-            model,
-            args,
-            train_dataset=train_dataset,
-            eval_dataset=val_dataset,
-            tokenizer=image_processor,
-            compute_metrics=self.compute_metrics,
-            data_collator=self.collate_fn,
-            optimizers=(optimizer, lr_scheduler),
-            class_w=self.class_w,
-        )
-        """
         trainer = Trainer(
             model,
             args,
@@ -132,56 +108,137 @@ class VAN(HuggingFaceImageClassificationModel):
         )
 
         # Train model
-        print("Starting training of model VAN: Visual Attention Network ===========================")
-        train_results = trainer.train()
-
-        """
-        if free_memory:
-            free_train_and_val_memory(data_train, data_val)
-            free_train_and_val_memory(train_dataset, val_dataset)
-        """
+        if not test_only:
+            print("Starting training of model VAN: Visual Attention Network ===========================")
+            trainer.train()
         
         return {
             "trainer": trainer,
             "val_transform": val_dataset.transform
         }
-        # return trainer
 
     def test(self,
-             test_data,
-             training_result,
-             model_path,
+             test_data: tuple,
+             training_result: dict,
+             model_info: dict,
              *args,
+             dataset_name: str = "",
              generator=False,
+             test_only: bool = False,
              **kwargs):
+        """ Test model
+        Args:
+            test_data [tuple]: tuple containing data (index 0) and targets (index 1)
+            training_result [dict]: dictionary containing training results
+            model_info [dict]: dict containing model info such as saved path and transforms
+            dataset_name [str]: name of dataset
+            generator [bool]: if set to true, input data is provided in a generator
+        """
         
-        print("Starting inference using trained model (VAN: Visual Attention Network) ===========================")
+        print("Starting inference using trained model VAN: Visual Attention Network ===========================")
+
+        if test_only:
+            is_predicted_overlays = "_previous" not in kwargs["complete_data"]["data_params"]["data_types"][0]
+            pretrained_model = load_pretrained_van(dataset_name,
+                                                   is_predicted_overlays=is_predicted_overlays)
+            training_result["trainer"].model = pretrained_model
 
         return test_image_based_model(
             test_data,
             training_result,
-            model_path,
+            model_info,
             generator
         )
 
-class VanEncodingsModel(VanPreTrainedModel):
-    def __init__(self, config):
+
+def load_pretrained_van(dataset_name: str,
+                        is_predicted_overlays: bool = True):
+    label2id, id2label = get_class_labels_info()
+    if dataset_name in ["pie", "combined"]:
+        checkpoint1 = "data/models/pie/VAN/14Oct2024-00h13m09s_VA10"
+        checkpoint2 = "data/models/pie/VAN/14Oct2024-10h37m58s_VA11"
+        #checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
+        #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
+    elif dataset_name == "jaad_all":
+        checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
+        checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
+    elif dataset_name == "jaad_beh":
+        checkpoint1 = "data/models/jaad/VAN/13Oct2024-20h16m00s_VA8"
+        checkpoint2 = "data/models/jaad/VAN/13Oct2024-20h56m50s_VA9"
+    
+    checkpoint = checkpoint1 if is_predicted_overlays else checkpoint2
+
+    pretrained_model = VanEncodingsForImageClassification.from_pretrained(
+        checkpoint,
+        id2label=id2label,
+        label2id=label2id,
+        ignore_mismatched_sizes=True)
+    
+    # Make all layers untrainable
+    for child in pretrained_model.children():
+        for param in child.parameters():
+            param.requires_grad = False
+    return pretrained_model
+
+
+class VanEncodingsForImageClassification(VanPreTrainedModel):
+    """ Adapted from the transformers library """
+
+    def __init__(self, config: VanConfig):
         super().__init__(config)
-        self.config = config
-        self.encoder = VanEncoder(config)
-        # final layernorm layer
-        self.layernorm = nn.LayerNorm(config.hidden_sizes[-1], eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(p=0.2)
-        self.fcN = nn.Linear(config.hidden_sizes[-1], 30) 
-        # Initialize weights and apply final processing
-        self.post_init()
+        self.van = VanEncodingsModel(config)
+        self._config = config
+        self.classifier = (
+            nn.Linear(30, config.num_labels) if config.num_labels > 0 else nn.Identity()
+        )
+        self.post_init() # Initialize weights and apply final processing
 
     def forward(
         self,
-        pixel_values: Optional[torch.FloatTensor],
+        pixel_values: torch.FloatTensor = None,
+        labels: Optional[torch.LongTensor] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPoolingAndNoAttention]:
+    ):
+
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.van(
+            pixel_values, 
+            output_hidden_states=output_hidden_states, 
+            return_dict=return_dict)
+
+        pooled_output = outputs.pooler_output if return_dict else outputs[1]
+        
+        logits = self.classifier(pooled_output)
+
+        return compute_loss(outputs,
+                            logits,
+                            labels,
+                            self._config,
+                            self._config.num_labels,
+                            return_dict,
+                            problem_type=self._config.problem_type)
+
+
+class VanEncodingsModel(VanPreTrainedModel):
+    """ Adapted from the transformers library """
+
+    def __init__(self, config: VanConfig):
+        super().__init__(config)
+        self.config = config
+        self.encoder = VanEncoder(config)
+        self.layernorm = nn.LayerNorm(config.hidden_sizes[-1], eps=config.layer_norm_eps) # final layernorm layer
+        self.dropout = nn.Dropout(p=0.2)
+        self.fcN = nn.Linear(config.hidden_sizes[-1], 30) 
+        self.post_init() # Initialize weights and apply final processing
+
+    def forward(
+        self,
+        pixel_values: torch.FloatTensor,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
@@ -207,86 +264,28 @@ class VanEncodingsModel(VanPreTrainedModel):
         )
 
 
-class VanEncodingsForImageClassification(VanPreTrainedModel):
-    def __init__(self, config):
-        super().__init__(config)
-        self.van = VanEncodingsModel(config)
-        self._config = config
-        self.classifier = (
-            nn.Linear(30, config.num_labels) if config.num_labels > 0 else nn.Identity()
-        )
-        # Initialize weights and apply final processing
-        self.post_init()
-
-    def forward(
-        self,
-        pixel_values: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, ImageClassifierOutputWithNoAttention]:
-
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        outputs = self.van(pixel_values, output_hidden_states=output_hidden_states, return_dict=return_dict)
-
-        pooled_output = outputs.pooler_output if return_dict else outputs[1]
-        
-        logits = self.classifier(pooled_output)
-
-        return compute_loss(outputs,
-                            logits,
-                            labels,
-                            self._config,
-                            self._config.num_labels,
-                            return_dict,
-                            problem_type=self._config.problem_type)
-
-
-def get_van_image_processor_and_config(data_train, dataset_statistics, 
-                                       obs_input_type=None):
+def get_van_image_processor_and_config(
+        data_train: dict, 
+        dataset_statistics: dict = None
+    ):
     class_labels = ["no_cross", "cross"]
     label2id = {label: i for i, label in enumerate(class_labels)}
     id2label = {i: label for label, i in label2id.items()}
 
-    #model_ckpt = "microsoft/swin-tiny-patch4-window7-224"
-    #model_ckpt = "Visual-Attention-Network/van-base"
-    #model_ckpt = "Visual-Attention-Network/van-large"
-    #model_ckpt = "Visual-Attention-Network/van-small"
-    model_ckpt = "Visual-Attention-Network/van-tiny"
+    model_ckpt = "Visual-Attention-Network/van-base"
     
     image_processor = AutoImageProcessor.from_pretrained(model_ckpt)
 
-    if not obs_input_type:
-        obs_input_type = data_train["data_params"]["data_types"][0]
-    if "flow_optical_v4" in obs_input_type:
-        # Image data has 4 channels (3 RGB + 1 OF)
-        image_processor.image_mean.append(image_processor.image_mean[-1])
-        image_processor.image_std.append(image_processor.image_std[-1])
-    if ("flow_optical_v5" in obs_input_type):
-        # Image data has 5 channels (3 RGB + 2 OF)
-        image_processor.image_mean.append(image_processor.image_mean[-1])
-        image_processor.image_std.append(image_processor.image_std[-1])
-    else:
-        image_processor.image_mean = dataset_statistics["dataset_means"][obs_input_type]
-        image_processor.image_std = dataset_statistics["dataset_std_devs"][obs_input_type]
+    obs_input_type = data_train["data_params"]["data_types"][0]
+    image_processor.image_mean = dataset_statistics["dataset_means"][obs_input_type]
+    image_processor.image_std = dataset_statistics["dataset_std_devs"][obs_input_type]
 
-    # Model without any pre-training
-    """
-    config = VanConfig()
-    model = VanEncodingsForImageClassification(
-        config=config
-    )
-        """
-
-    # Model with pre-training
-    
+    # Get VAN model config
     config = VanEncodingsForImageClassification.from_pretrained(
         model_ckpt,
         id2label=id2label,
         label2id=label2id,
-        ignore_mismatched_sizes = True).config # find something better to get proper config
-    #config = VanConfig()
+        ignore_mismatched_sizes=True).config # TODO: there must be a better way to do this without loading the model
     config.num_channels = 3
     config.problem_type = "single_label_classification"
 

@@ -6,10 +6,10 @@ from torchsummary import summary
 from transformers import Trainer, TrainingArguments
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 
+from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model
 from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig
 from models.hugging_face.utilities import compute_loss, get_device
-from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
 from utils.data_load import DataGenerator
 
 PRED_LEN = 60
@@ -112,6 +112,7 @@ class TrajectoryTransformer(HuggingFaceTimeSeriesModel):
              *args,
              dataset_name: str = "",
              generator: bool = False,
+             test_only: bool = False,
              **kwargs):
         """ Test model
         Args:
@@ -124,8 +125,7 @@ class TrajectoryTransformer(HuggingFaceTimeSeriesModel):
         
         print("Starting inference using trained model Trajectory Transformer ===========================")
 
-        use_pretrained_model = True
-        if use_pretrained_model:
+        if test_only:
             pretrained_model = load_pretrained_trajectory_transformer(dataset_name)
             training_result["trainer"].model = pretrained_model
 

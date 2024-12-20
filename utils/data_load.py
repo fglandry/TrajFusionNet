@@ -270,7 +270,7 @@ def get_static_context_data(self,
     data_gen_params['feature_type'] = feature_type
     data_gen_params['is_feature_static'] = True
     get_first_static_feature_instead_of_last = (feature_type == "scene_context_with_segmentation_v5" \
-                                                or "doubled" in feature_type \
+                                                or "previous" in feature_type \
                                                     or model_opts["model"]=="VanMultiscale" and feature_type=="local_context")
     #data_gen_params['get_first_static_feature'] = get_first_static_feature_instead_of_last
 
