@@ -925,7 +925,8 @@ class ActionPredict(object):
             if 'local_context' in feature_type or 'surround' in feature_type:
                 save_folder_name = '_'.join([save_folder_name, str(eratio)])
         data_gen_params['save_path'], _ = get_path(save_folder=save_folder_name,
-                                                   dataset=dataset, save_root_folder='data/features')
+                                                   dataset=model_opts["dataset_full"], 
+                                                   save_root_folder='data/features')
         # Get context data
         if 'scene_context' in feature_type and feature_type != "scene_context_non_static":
             return get_static_context_data(

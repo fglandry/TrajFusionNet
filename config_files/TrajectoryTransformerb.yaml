@@ -32,6 +32,6 @@ model_opts:
       backbone: vgg16
 exp_opts:
   datasets: [pie]
-  batch_size: [16, 4, 4]
-  epochs: [60, 40, 40]
-  lr: [5.0e-06, 5.0e-06, 5.0e-06]
+  batch_size: [16]
+  epochs: [60]
+  lr: [5.0e-06]

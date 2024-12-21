@@ -11,59 +11,65 @@ from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
 
 from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
-from models.hugging_face.model_trainers.trajectorytransformerb import TrajectoryTransformerModel, get_config_for_timeseries_lib as get_config_for_trajectory_classification
+from models.hugging_face.model_trainers.trajectorytransformerb import load_pretrained_encoder_transformer
+from models.hugging_face.model_trainers.van import load_pretrained_van
 from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, normalize_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
 from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
 from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.custom_layers_pytorch import SelfAttention
+from utils.data_load import DataGenerator
 
 NET_INNER_DIM = 512
 NET_OUTER_DIM = 40
 DROPOUT = 0.1
 
+
 class TrajFusionNet(HuggingFaceTimeSeriesModel):
-    """ Base Transformer with cross attention between modalities
-    """
 
     def train(self,
-              data_train, 
-              data_val,
-              batch_size, 
-              epochs,
-              model_path,  
+              data_train: dict,  
+              data_val: DataGenerator,
+              batch_size: int,
+              epochs: int,
+              model_path: str,   
               generator=False,
-              train_opts=None,
-              dataset_statistics=None,
-              hyperparams=None,
-              class_w=None,
+              train_opts: dict = None,  
+              dataset_statistics: dict = None,
+              hyperparams: dict = None,
+              class_w: list = None,
+              test_only: bool = False,
               *args, **kwargs):
-        print("Starting model loading for model Vanilla Transformer ===========================")
+        """ Train model
+        Args:
+            data_train [dict]: training data (data_train['data'][0] contains the generator)
+            data_val [DataGenerator]: validation data
+            model_path [str]: path where the model will be saved
+            train_opts [str]: training options (includes learning rate)
+            dataset_statistics [dict]: contains dataset statistics such as avg / std dev per feature
+            class_w [list]: class weights
+            test_only [bool]: is set to True, model will not be trained, only tested
+        """
 
-        # Get parameters used by time series library model
-        timeseries_element = data_train['data'][0][0][0][-1]
-        encoder_input_size = timeseries_element.shape[-1]
-        seq_len = timeseries_element.shape[-2]
-        context_len = 15 # timeseries_context_element.shape[-1]
-        
-        # Get model
+        print("Starting model loading for model TrajFusionNet ===========================")
+
+        # Get hyperparameters (if specified) and model configs
         hyperparams = hyperparams.get(self.__class__.__name__.lower(), {}) if hyperparams else {}
-        config_for_timeseries_lib = get_config_for_timeseries_lib(encoder_input_size, seq_len, hyperparams)
         config_for_huggingface = TimeSeriesTransformerConfig()
+        self.class_w = class_w
 
-        model = VanillaTransformerForClassification(config_for_huggingface, 
-                                                    config_for_timeseries_lib,
-                                                    class_w=class_w,
-                                                    dataset_statistics=dataset_statistics,
-                                                    dataset_name=kwargs["model_opts"]["dataset_full"])
+        model = TrajFusionNetForClassification(config_for_huggingface, 
+                                               class_w=class_w,
+                                               dataset_statistics=dataset_statistics,
+                                               dataset_name=kwargs["model_opts"]["dataset_full"])
         summary(model)
 
         # Get datasets
-        video_model_config = TimesformerConfig()
         train_dataset, val_dataset, val_transforms_dicts = get_timeseries_datasets(
-            data_train, data_val, model, generator, video_model_config,
+            data_train, data_val, model, generator, None,
             get_image_transform=True, img_model_config=None,
             dataset_statistics=dataset_statistics, ignore_sem_map=True)
 
+        warmup_ratio = 0.1
         args = TrainingArguments(
             output_dir=model_path,
             remove_unused_columns=False,
@@ -73,17 +79,109 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             per_device_train_batch_size=batch_size, 
             per_device_eval_batch_size=batch_size,
             num_train_epochs = epochs,
-            warmup_ratio=0.1,
+            warmup_ratio=warmup_ratio,
             logging_steps=10,
             load_best_model_at_end=True,
             metric_for_best_model="auc",
             push_to_hub=False,
             max_steps=-1 # added
         )
+        
 
-        optimizer, lr_scheduler = get_optimizer(self, model, args, 
-            train_dataset, val_dataset, data_train, train_opts, warmup_ratio)
+        # Train model
+        if not test_only:
+            print("Starting training of model TrajFusionNet ===========================")
+            trainer = self.train_with_initial_vam_branch_disabling(
+                model, epochs, args, train_dataset,
+                val_dataset, data_train, train_opts,
+                disable_vam_branch_initially=True
+            )
+        else:
+            optimizer, lr_scheduler = get_optimizer(self, model, args, 
+                    train_dataset, val_dataset, data_train, train_opts)
+            trainer = self._get_trainer(model, args, train_dataset, 
+                                        val_dataset, optimizer, lr_scheduler)
+        
+        return {
+            "trainer": trainer,
+            "val_transform": val_transforms_dicts
+        }
+    
+    def train_with_initial_vam_branch_disabling(self,
+            model, epochs, args, train_dataset, 
+            val_dataset, data_train, train_opts,
+            disable_vam_branch_initially=True):
+        
+        initial_weights = copy.deepcopy(model.state_dict())
 
+        """
+        optimizer, lr_scheduler = get_optimizer(
+            self, model, args, train_dataset, val_dataset, data_train, train_opts, 
+            warmup_ratio, disable_vam_branch=False)
+        trainer = self._get_trainer(model, args, train_dataset, 
+                                    val_dataset, optimizer, lr_scheduler)
+
+        trainer.train()
+        """
+
+        best_metric = 0
+        best_trainer = None
+        best_scenario_when_vam_disabled = False
+
+        if disable_vam_branch_initially:
+            # Reset weights and keep training model with learning rate of VAM
+            # branch set to 0 + weights of embed layer set to 0, during first 10 epochs
+            # model.load_state_dict(initial_weights)
+            with torch.no_grad(): 
+                model.van_output_embed.weight.zero_()
+                model.van_output_embed.bias.zero_()
+
+            for i in range(epochs):
+                
+                # Get custom optimizer to disable learning in the projection layer of
+                # the VAM branch for the first 10 epochs
+                optimizer, lr_scheduler = get_optimizer(self, model, args, 
+                    train_dataset, val_dataset, data_train, train_opts,
+                    disable_vam_branch=True, epoch_index=i+1)
+                
+                trainer1 = self._get_trainer(model, args, train_dataset, 
+                                             val_dataset, optimizer, lr_scheduler)
+                trainer1.args.num_train_epochs = 1
+                
+                trainer1.train()
+
+                # metric = best_trainer.state.best_metric if best_trainer.state.best_metric is not None else 0.0
+                if trainer1.state.best_metric > best_metric:
+                    best_trainer = trainer1
+                    best_metric = trainer1.state.best_metric
+                    best_scenario_when_vam_disabled = True
+
+            print(f"Best AUC metric in first part of training: {trainer1.state.best_metric}")
+            model_weights = copy.deepcopy(trainer1.model.state_dict())
+
+            # the trainer object "forgets" the best scenario, so we have to retrain
+            #if not best_scenario_when_vam_disabled: 
+            model.load_state_dict(model_weights)
+            optimizer, lr_scheduler = get_optimizer(self, model, args, 
+                train_dataset, val_dataset, data_train, train_opts,
+                disable_vam_branch=False)
+            
+            trainer2 = self._get_trainer(model, args, train_dataset, 
+                                        val_dataset, optimizer, lr_scheduler)
+            trainer2.args.num_train_epochs = epochs
+
+            trainer2.train()
+            if trainer2.state.best_metric > best_metric:
+                best_trainer = trainer2
+                best_metric = trainer2.state.best_metric
+            print(f"Best AUC metric in second part of training: {trainer2.state.best_metric}")
+        
+        print(f"Best AUC metric: {best_trainer.state.best_metric}")
+        return best_trainer
+
+
+    def _get_trainer(self, model, args, train_dataset, 
+                     val_dataset, optimizer, lr_scheduler):
         trainer = Trainer(
             model,
             args,
@@ -94,230 +192,158 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             data_collator=self.collate_fn,
             optimizers=(optimizer, lr_scheduler)
         )
-
-        # Train model
-        print("Starting training of model ===========================")
-        
-        train_results = trainer.train()
-        
-        return {
-            "trainer": trainer,
-            "val_transform": val_transforms_dicts
-        }
+        return trainer
 
     def test(self,
-             test_data,
-             training_result,
-             model_path,
-             generator=False,
-             complete_data=None):
+             test_data: tuple,
+             training_result: dict,
+             model_info: dict,
+             *args,
+             dataset_name: str = "",
+             generator: bool = False,
+             test_only: bool = False,
+             complete_data=None,
+             **kwargs):
         
         print("Starting inference using trained model ===========================")
+
+        if test_only:
+            pretrained_model = load_pretrained_trajfusionnet(dataset_name)
+            training_result["trainer"].model = pretrained_model
 
         return test_time_series_based_model(
             test_data,
             training_result,
-            model_path,
-            generator,
-            ignore_sem_map=True,
-            complete_data=complete_data
+            model_info,
+            generator
         )
 
 
-class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
+class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
     def __init__(self,
-                 config_for_huggingface,
-                 config_for_timeseries_lib=None,
-                 class_w=None,
-                 dataset_statistics=None,
-                 dataset_name=None
+                 config_for_huggingface: TimeSeriesTransformerConfig,
+                 class_w: list = None,
+                 dataset_statistics: dict = None,
+                 dataset_name: str = ""
         ):
-        super().__init__(config_for_huggingface, config_for_timeseries_lib)
+        super().__init__(config_for_huggingface)
         self._device = get_device()
         self._dataset = dataset_name
-
         self.dataset_statistics = dataset_statistics
-        self.class_w = torch.tensor(class_w).to(self._device)
+        self.class_w = torch.tensor(class_w).to(self._device) if class_w else None
         self.num_labels = config_for_huggingface.num_labels
-        timeseries_config = config_for_timeseries_lib[0]
+
+        self.combine_branches_with_attention = False
+        self.combine_vans_with_attention = False
 
         # MODEL PARAMETERS ==========================================
 
-        # Classifier head
+        # Classifier head parameters
         self.van_output_size = 256
         self.max_classifier_hidden_size = NET_OUTER_DIM
         self.max_classifier_hidden_size_van = NET_INNER_DIM
-        self.fc1_neurons = 80 # 1 * 3 * self.max_classifier_hidden_size  + 40 # 2 * 40
-        self.fc2_neurons = 40
+        self.fc1_neurons = 2 * self.max_classifier_hidden_size
+        self.fc2_neurons = NET_OUTER_DIM
         
-        # Get pretrained VAN Model -------------------------------------------
-        label2id, id2label = get_class_labels_info()
-        if self._dataset in ["pie", "combined"]:
-            checkpoint1 = "data/models/pie/VAN/14Oct2024-00h13m09s_VA10"
-            checkpoint2 = "data/models/pie/VAN/14Oct2024-10h37m58s_VA11"
-            #checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
-            #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
-        elif self._dataset == "jaad_all":
-            checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
-            checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
-        elif self._dataset == "jaad_beh":
-            checkpoint1 = "data/models/jaad/VAN/13Oct2024-20h16m00s_VA8"
-            checkpoint2 = "data/models/jaad/VAN/13Oct2024-20h56m50s_VA9"
-        
-        self.use_separate_vans = True
-        if self.use_separate_vans:
+        # Get pretrained VAN Models -------------------------------------------
+        self.van1 = load_pretrained_van( # predicted ped overlays
+            dataset_name,
+            is_predicted_overlays=True,
+            add_classification_head=False)
 
-            pretrained_model = VanModel.from_pretrained(
-                checkpoint1,
-                id2label=id2label,
-                label2id=label2id,
-                ignore_mismatched_sizes=True)
-            
-            # Make all layers untrainable
-            for child in pretrained_model.children():
-                for param in child.parameters():
-                    param.requires_grad = False
-            self.van1 = pretrained_model
+        self.van2 = load_pretrained_van( # observed ped overlays
+            dataset_name,
+            is_predicted_overlays=False,
+            add_classification_head=False)
 
-            pretrained_model = VanModel.from_pretrained(
-                checkpoint2,
-                id2label=id2label,
-                label2id=label2id,
-                ignore_mismatched_sizes=True)
-            
-            # Make all layers untrainable
-            for child in pretrained_model.children():
-                for param in child.parameters():
-                    param.requires_grad = False
-            self.van2 = pretrained_model
+        # Get pretrained encoder transformer -----------------------------------------
+        self.traj_class_TF = load_pretrained_encoder_transformer(dataset_name,
+                                                                 add_classification_head=False)
 
-        # Get pretrained trajectory classifier -------------------------------------------
-        config_for_trajectory_predictor = get_config_for_trajectory_classification(
-            encoder_input_size=5, seq_len=75, hyperparams={})
-        if self._dataset in ["pie", "combined"]:
-            checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
-        elif self._dataset == "jaad_all":
-            checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
-            #checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
-        elif self._dataset == "jaad_beh":
-            checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
-        pretrained_model = TrajectoryTransformerModel.from_pretrained(
-            checkpoint,
-            config_for_timeseries_lib=config_for_trajectory_predictor,
-            ignore_mismatched_sizes=True,
-            dataset_name=self._dataset)
-        
-        # Make all layers untrainable
-        for child in pretrained_model.children():
-            for param in child.parameters():
-                param.requires_grad = False
-        self.traj_class_TF = pretrained_model
-
+        # Classifier layers
+        if self.combine_branches_with_attention:
+            self.self_attention = SelfAttention(self.max_classifier_hidden_size)
+        if self.combine_vans_with_attention:
+            self.self_attention_van = SelfAttention(self.max_classifier_hidden_size_van)
+        self.van_output_embed = nn.Linear(self.max_classifier_hidden_size_van*2, NET_OUTER_DIM)
         self.dropout = nn.Dropout(p=DROPOUT)
-
-        self.self_attention = SelfAttention(self.max_classifier_hidden_size)
-        self.self_attention_van = SelfAttention(self.max_classifier_hidden_size_van)
-        self.van_output_embed = nn.Linear(self.max_classifier_hidden_size_van, 40)
         self.fc1 = nn.Linear(self.fc1_neurons, self.fc2_neurons)
         self.fc2 = nn.Linear(self.fc2_neurons, self.num_labels)
 
-        self.projection_van = nn.Linear(self.van_output_size, timeseries_config.num_class) 
-
-        # Initialize weights and apply final processing
-        self.post_init()
+        self.post_init() # Initialize weights and apply final processing
 
     def forward(
         self,
-        trajectory_values: Optional[torch.Tensor] = None,
-        image_context: Optional[torch.Tensor] = None,
-        previous_image_context: Optional[torch.Tensor] = None,
-        normalized_trajectory_values: Optional[torch.Tensor] = None,
-        video_values: Optional[torch.Tensor] = None,
+        trajectory_values: torch.Tensor = None,
+        image_context: torch.Tensor = None,
+        previous_image_context: torch.Tensor = None,
+        normalized_trajectory_values: torch.Tensor = None,
         labels: Optional[torch.Tensor] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        debug=False,
         *args, **kwargs
-    ) -> Union[Tuple, ImageClassifierOutputWithNoAttention]:
-
-        add_previous_context = False
-        combine_branches_with_attention = False
-        combine_branches_with_attention_van = False
+    ):
+        """ Args:
+        trajectory_values [torch.Tensor]: non-normalized observed trajectory values
+            of shape [batch, seq_len, enc]
+        normalized_trajectory_values [torch.Tensor]: normalized observed trajectory values
+            of shape [batch, seq_len, enc]
+        labels [torch.Tensor]: future target trajectory values of shape [batch, pred_len, enc]
+            (between time t=0 and time t=60)
+        """
+        
         return_dict = self._on_entry(output_hidden_states, return_dict)
 
-        # ====================================================================================
-        # Apply VAN model to image context ===================================================
+        # Apply VAN model to image context with predicted pedestrian overlays =========================
+        output1 = self.van1(
+            image_context,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict
+        )
+        van_output = output1.pooler_output if return_dict else output1 # shape=[batch, 512]
 
-        if self.use_separate_vans:
-            # Get timeseries model output
-            output1 = self.van1(
-                image_context,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
-            output1_tensor = output1.pooler_output if return_dict else output1 # output[1]
-            van_output = output1_tensor # self.dropout1(output1_tensor)
+        # Apply VAN model to image context at time t-15 with observed pedestrian overlays =============
+        output2 = self.van2(
+            previous_image_context,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict
+        )
+        van_output_prev = output2.pooler_output if return_dict else output2
 
-            if add_previous_context:
-                # Get previous context output from VAN
-                output2 = self.van2(
-                    previous_image_context,
-                    output_hidden_states=output_hidden_states,
-                    return_dict=return_dict,
-                )
-                output2_tensor = output2.pooler_output if return_dict else output2
-                van_output_prev = output2_tensor # self.dropout2(output2_tensor)
-
-            if combine_branches_with_attention_van:
-                tuple_to_concat = [van_output_prev, van_output]
-                original_x = torch.cat(tuple_to_concat, dim=1) # shape=(batch, combined_fc_len)
-                
-                van_output_cat = self._concatenate_with_attention(self.self_attention_van, 
-                        original_x, tuple_to_concat, 
-                        self.max_classifier_hidden_size_van)
-                van_output_cat = self.van_output_embed(van_output_cat)
-            else:
-                #van_output_cat = torch.cat([van_output_prev, 
-                #                            van_output], dim=1)
-                van_output_cat = self.van_output_embed(van_output)
+        if self.combine_vans_with_attention:
+            tuple_to_concat = [van_output_prev, van_output]
+            original_x = torch.cat(tuple_to_concat, dim=1) # shape=[batch, combined_fc_len]
             
+            van_output_cat = self._concatenate_with_attention(self.self_attention_van, 
+                    original_x, tuple_to_concat, 
+                    self.max_classifier_hidden_size_van)
+            van_output_cat = self.van_output_enc(van_output_cat)
         else:
-            output1 = self.van_multiscale(
-                image_context,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
-            output1_tensor = output1.pooler_output if return_dict else output1 # output[1]
-            van_output_cat = output1_tensor # self.dropout1(output1_tensor)
-
-
-        # ====================================================================================
-        # Apply TF to trajectory values ======================================================
+            van_output_cat = torch.cat([van_output_prev, 
+                                        van_output], dim=1)
+            van_output_cat = self.van_output_embed(van_output_cat) # shape=[batch, 40]
+            
+        # Apply Encoder TF to trajectory values =============================================
 
         outputs_pred = self.traj_class_TF(
             trajectory_values=trajectory_values,
             normalized_trajectory_values=normalized_trajectory_values
         )
 
-        # Concatenate trajectory and context branches ========================================
+        # Fuse branches =====================================================================
 
-        # van_output_projected = self._project(van_output, self.projection_van)
-
-        # Add branch-based self-attention ====================================================
-        if combine_branches_with_attention:
+        if self.combine_branches_with_attention:
             tuple_to_concat = [outputs_pred, van_output_cat]
-            original_x = torch.cat(tuple_to_concat, dim=1) # shape=(batch, combined_fc_len)
+            original_x = torch.cat(tuple_to_concat, dim=1) # shape=[batch, combined_fc_len]
             
             x = self._concatenate_with_attention(self.self_attention, 
-                    original_x, tuple_to_concat, 
-                    self.max_classifier_hidden_size)
+                    original_x, tuple_to_concat, self.max_classifier_hidden_size)
         else:
             tuple_to_concat = [outputs_pred, van_output_cat]
-            x = torch.cat(tuple_to_concat, dim=1)
+            x = torch.cat(tuple_to_concat, dim=1) # shape=[batch, 80]
 
-        # Apply fully-connected layers =======================================================
+        # Apply fully-connected layers
         outputs = self.dropout(nn.ReLU()(self.fc1(x)))
-        # outputs = x
         logits = self.fc2(outputs)
 
         return compute_loss(outputs,
@@ -331,26 +357,21 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
     def _concatenate_with_attention(self, self_attention, original_x, 
                                     tuple_to_concat, max_concat_size):
         
-        # Concatenate outputs with padding
+        # concatenate outputs with padding
         tuple_to_concat = self._pad_tensors(tuple_to_concat, max_concat_size)
-        x = torch.cat(tuple_to_concat, dim=1) # shape=(batch, nb_models, max_concat_size)
+        x = torch.cat(tuple_to_concat, dim=1) # shape=[batch, nb_models, max_concat_size]
 
         attention_ctx, attn = self_attention(x)
         attention_ctx = attention_ctx.squeeze(2)
         x = torch.cat((original_x, attention_ctx), dim=1)
 
         return x
-    
-    def _project(self, output, projection):
-        output = output.reshape(output.shape[0], -1)  # (batch_size, seq_length * d_model)
-        output = projection(output)  # (batch_size, num_classes)
-        return output
 
     def _pad_tensors(self, tensors: list, max_size: int, pad_dim=1):
         for idx, output_tensor in enumerate(tensors):
-            tensors[idx] = F.pad(output_tensor, pad=(0, max_size - output_tensor.shape[pad_dim], 0, 0)) # shape=(batch, fc_len)
+            tensors[idx] = F.pad(output_tensor, pad=(0, max_size - output_tensor.shape[pad_dim], 0, 0)) # shape=[batch, fc_len]
             if len(tensors[idx].shape) <= 2:
-                tensors[idx] = tensors[idx].unsqueeze(1) # shape=(batch, X, fc_len)
+                tensors[idx] = tensors[idx].unsqueeze(1) # shape=[batch, X, fc_len]
         return tensors
     
     def _on_entry(self, output_hidden_states, return_dict):
@@ -360,54 +381,22 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
         return return_dict
 
 
-def get_config_for_timeseries_lib(encoder_input_size, seq_len, 
-                                  hyperparams):
-    seq_len = 5
-    hyperparams = hyperparams.get("context_tf", {})
-
-    # time series lib properties
-    time_series_dict = {
-        "task_name": "classification",
-        "pred_len": 0, # for Timesblock
-        "output_attention": False, # whether to output attention in encoder; note: not used by vanilla transformer model
-        "enc_in": 5, # 59, # 22 #77, #6161 # 84 # encoder input size - default value,
-        "d_model": 128, # dimension of model - default value 
-        "embed": "learned", # time features encoding; note: not used in classification task by vanilla transformer model
-        "freq": "h", # freq for time features encoding; note: not used in classification task by vanilla transformer model
-        "dropout": DROPOUT, # default,
-        "factor": 1, # attn factor; note: not used by vanilla transformer model
-        "n_heads": hyperparams.get("n_heads", 4), # num of heads
-        "d_ff": hyperparams.get("d_ff", 512), # dimension of fcn (or 2048)
-        "activation": "gelu",
-        "e_layers": hyperparams.get("e_layers", 2), # num of encoder layers (or 3)
-        "seq_len": seq_len, # input sequence length
-        "num_class": NET_INNER_DIM, # number of neurons in last Linear layer at the end of model
-        # ---------------------------------------------------------------------------------
-        "label_len": 1, # Timesnet - start token length
-        "num_kernels": 6, # Timesnet - for Inception
-        "top_k": 5, # Timesnet - for TimesBlock
-        "moving_avg": 3, # FEDformer - window size of moving average, default=25
-        "dec_in": 7, # FEDformer - decoder input size
-        "d_layers": 2, # FEDformer - num of decoder layers
-        "c_out": 7, # FEDformer - output size
-        "distil": True, # Informer - whether to use distilling in encoder, using this argument means not using distilling
-        #"c_out": 77, # override - MICN - output size
-        "p_hidden_dims": [128, 128], # Nonstationary transformer - hidden layer dimensions of projector (List)
-        "p_hidden_layers": 2, # Nonstationary transformer - number of hidden layers in projector
-        # "num_kernels": 3, # override - Pyraformer
-    }
+def load_pretrained_trajfusionnet(dataset_name: str):
+    if dataset_name in ["pie", "combined"]:
+        checkpoint = "data/models/pie/TrajFusionNet/21Dec2024-16h56m47s_NEWPIE"
+    elif dataset_name == "jaad_all":
+        pass
+    elif dataset_name == "jaad_beh":
+        checkpoint = "/home/francois/MASTER/TrajFusionNet/data/models/jaad/TrajFusionNet/20Dec2024-23h04m36s"
     
-    config_for_timeseries_lib = TimeSeriesLibraryConfig(time_series_dict)
-    time_series_dict_0 = copy.deepcopy(time_series_dict)
-    time_series_dict_0["enc_in"] = encoder_input_size
-    time_series_dict_0["task_name"] = "encoding"
-    config_for_timeseries_lib_0 = TimeSeriesLibraryConfig(time_series_dict_0)
-    return config_for_timeseries_lib_0, config_for_timeseries_lib
-
-
-def get_number_of_training_steps(data_train, train_opts):
-    total_devices = 1 # self.hparams.n_gpus * self.hparams.n_nodes
-    train_batches = math.ceil((data_train["count"]["neg_count"]+data_train["count"]["pos_count"]) / train_opts["batch_size"])
-    train_batches = train_batches // total_devices
-    train_steps = train_opts["epochs"] * train_batches # // self.hparams.accumulate_grad_batches
-    return train_steps
+    pretrained_model = TrajFusionNetForClassification.from_pretrained(
+        checkpoint,
+        ignore_mismatched_sizes=True,
+        dataset_name=dataset_name,
+        class_w=None)
+    
+    # Make all layers untrainable
+    for child in pretrained_model.children():
+        for param in child.parameters():
+            param.requires_grad = False
+    return pretrained_model

@@ -709,8 +709,8 @@ class Static(ActionPredict):
         save_folder_name = '_'.join(['local_context', aux_name, str(eratio)]) if feature_type == 'local_context' \
                            else '_'.join([feature_type, aux_name])
         path_to_features, _ = get_path(save_folder=save_folder_name,
-                                          dataset=dataset,
-                                          save_root_folder='data/features')
+                                       dataset=model_opts["dataset_full"],
+                                       save_root_folder='data/features')
         data_gen_params = {'data_type': data_type, 'save_path': path_to_features,
                            'crop_type': 'none', 'process': process}
 
