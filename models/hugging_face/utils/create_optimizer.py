@@ -1,67 +1,55 @@
 import math
+from typing import Any
+
 from torch import nn
+from transformers import Trainer, TrainingArguments
 from transformers.dependency_versions_check import dep_version_check
-#from transformers.integrations import is_fairscale_available
 from transformers.utils import is_sagemaker_mp_enabled
 from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS
 from transformers.trainer import Trainer
 from transformers.trainer_utils import ShardedDDPOption
 from transformers.trainer_pt_utils import get_parameter_names
 
-"""
-if is_fairscale_available():
-    dep_version_check("fairscale")
-    import fairscale
-    from fairscale.optim import OSS
 
-if is_sagemaker_mp_enabled():
-    import smdistributed.modelparallel.torch as smp
-"""
+def override_create_optimizer(trainer_obj: Trainer,
+                              disable_vam_branch: bool = False,
+                              epoch_index: int = 0):
+    """ Change implementation of the create_optimizer() method in the Huggingface 
+        library's Trainer class to change learning rate in some layers depending
+        on the epoch
+    """
 
-def override_create_optimizer(trainer_obj, alternate_training=False, epoch_index=0):
-    """
-    Override the create_optimizer() method in the Huggingface
-    library's Trainer class
-    """
     opt_model = trainer_obj.model_wrapped if is_sagemaker_mp_enabled() else trainer_obj.model
 
     if trainer_obj.optimizer is None:
         decay_parameters = get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
         decay_parameters = [name for name in decay_parameters if "bias" not in name]
         
-        if alternate_training:
-            if epoch_index <= 8:
+        if disable_vam_branch:
+            # disable learning in VAM module by setting learning rate to 0 during first epochs
+            if epoch_index <= 10:
                 params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
-                                    (p.requires_grad and "van_output_embed" in n)] # n.startswith("vgg_encoder")
+                                    (p.requires_grad and "van_output_embed" in n)]
             else:
                 params_to_lower_lr = []
         else:
-            """
-            # ViT 
-            params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
-                                (p.requires_grad and idx < 84)]
-            params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
-                                    (p.requires_grad and n.startswith("van"))] # n.startswith("vgg_encoder")
-            """
+            #params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
+            #                      (p.requires_grad and n.startswith("transformer.traj_TF"))]
             params_to_lower_lr = []
-            params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
-                                  (p.requires_grad and n.startswith("transformer.traj_TF"))]
             
-
+            
         optimizer_grouped_parameters = [
             {
                 "params": [
                     p for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad and not n in params_to_lower_lr)
                 ],
                 "weight_decay": trainer_obj.args.weight_decay,
-                # 'lr': 5.0e-06
             },
             {
                 "params": [
                     p for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad and not n in params_to_lower_lr)
                 ],
                 "weight_decay": 0.0,
-                # 'lr': 5.0e-06
             },
             {
                 "params": [
@@ -101,13 +89,15 @@ def override_create_optimizer(trainer_obj, alternate_training=False, epoch_index
     return trainer_obj.optimizer
 
 
-def get_optimizer(self, model, args, train_dataset, val_dataset,
-                    data_train, train_opts, warmup_ratio, 
-                    alternate_training=False, epoch_index=0):
+def get_optimizer(self, model: Any, args: TrainingArguments, 
+                  train_dataset: Any, val_dataset: Any,
+                  data_train: dict, train_opts: dict,
+                  disable_vam_branch: bool = False,
+                  epoch_index: int = 0):
 
-    # A second instance of Trainer is declared in order to get the optimizer 
+    # A second instance of Trainer is instantiated in order to get the optimizer 
     # with the correct model parameters
-    # ToDo: there is obviously a more efficient way to do that
+    # TODO: there is obviously a more efficient way to do that
     trainer = Trainer(
         model,
         args,
@@ -116,40 +106,19 @@ def get_optimizer(self, model, args, train_dataset, val_dataset,
         tokenizer=None,
         compute_metrics=self.compute_metrics,
         data_collator=self.collate_fn,
-        #optimizers=(optimizer, lr_scheduler)
     )
 
     # Get optimizer
-    # optimizer = trainer.create_optimizer()
-    optimizer = override_create_optimizer(trainer, 
-                                          alternate_training=alternate_training, 
+    optimizer = override_create_optimizer(trainer,
+                                          disable_vam_branch=disable_vam_branch, 
                                           epoch_index=epoch_index)
-    """
-    optimizer = AdamW(
-        model.parameters(),
-        lr=train_opts["lr"],
-        no_deprecation_warning=True
-    )
-    """
-
-    """
-    optim.SGD([
-            {'params': model.base.parameters()},
-            {'params': model.classifier.parameters(), 'lr': 1e-3}
-        ], lr=1e-2, momentum=0.9)
-    """
     
     num_training_steps = get_number_of_training_steps(data_train, train_opts)
     
     lr_scheduler = trainer.create_scheduler(num_training_steps, optimizer)
-    
-    # default is get_linear_schedule_with_warmup() 
-    #lr_scheduler = get_linear_schedule_with_warmup(optimizer,
-    #    num_warmup_steps=math.ceil(num_training_steps * warmup_ratio), 
-    #    num_training_steps=num_training_steps)
-    #lr_scheduler = get_constant_schedule(optimizer)
 
     return optimizer, lr_scheduler
+
 
 def get_number_of_training_steps(data_train, train_opts):
     total_devices = 1 # self.hparams.n_gpus * self.hparams.n_nodes
