@@ -241,11 +241,15 @@ def load_pretrained_van(dataset_name: str,
         #checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
         #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
     elif dataset_name == "jaad_all":
-        checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
-        checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
+        checkpoint1 = "data/models/jaad/VAN/25Dec2024-11h25m13s_VA6B"
+        checkpoint2 = "data/models/jaad/VAN/25Dec2024-13h28m35s_VA7B"
+        #checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
+        #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
     elif dataset_name == "jaad_beh":
-        checkpoint1 = "data/models/jaad/VAN/13Oct2024-20h16m00s_VA8"
-        checkpoint2 = "data/models/jaad/VAN/13Oct2024-20h56m50s_VA9"
+        checkpoint1 = "data/models/jaad/VAN/25Dec2024-16h43m58s_VA8B"
+        checkpoint2 = "data/models/jaad/VAN/25Dec2024-21h06m13s_VA9B"
+        #checkpoint1 = "data/models/jaad/VAN/13Oct2024-20h16m00s_VA8"
+        #checkpoint2 = "data/models/jaad/VAN/13Oct2024-20h56m50s_VA9"
     
     checkpoint = checkpoint1 if is_predicted_overlays else checkpoint2
 

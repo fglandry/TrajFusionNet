@@ -73,7 +73,8 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         args = TrainingArguments(
             output_dir=model_path,
             remove_unused_columns=False,
-            evaluation_strategy="epoch",
+            evaluation_strategy="epoch", # "steps"
+            # eval_steps=50,
             save_strategy="epoch",
             learning_rate=train_opts["lr"],
             per_device_train_batch_size=batch_size, 
@@ -93,8 +94,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             print("Starting training of model TrajFusionNet ===========================")
             trainer = self.train_with_initial_vam_branch_disabling(
                 model, epochs, args, train_dataset,
-                val_dataset, data_train, train_opts,
-                disable_vam_branch_initially=True
+                val_dataset, data_train, train_opts
             )
         else:
             optimizer, lr_scheduler = get_optimizer(self, model, args, 
@@ -110,72 +110,80 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
     def train_with_initial_vam_branch_disabling(self,
             model, epochs, args, train_dataset, 
             val_dataset, data_train, train_opts,
-            disable_vam_branch_initially=True):
+            disable_vam_branch_initially=False):
         
         initial_weights = copy.deepcopy(model.state_dict())
 
-        """
-        optimizer, lr_scheduler = get_optimizer(
-            self, model, args, train_dataset, val_dataset, data_train, train_opts, 
-            warmup_ratio, disable_vam_branch=False)
-        trainer = self._get_trainer(model, args, train_dataset, 
-                                    val_dataset, optimizer, lr_scheduler)
-
-        trainer.train()
-        """
-
+        # Run first part of training procedure
         best_metric = 0
         best_trainer = None
-        best_scenario_when_vam_disabled = False
+        best_scenario_in_second_training = False
 
+        optimizer, lr_scheduler = get_optimizer(self, model, args, 
+            train_dataset, val_dataset, data_train, train_opts,
+            disable_vam_branch=False)
+        trainer = self._get_trainer(model, args, train_dataset, 
+                                     val_dataset, optimizer, lr_scheduler)
+        
+        trainer.train()
+        best_trainer = trainer
+        best_metric = trainer.state.best_metric if trainer.state.best_metric else 0
+        print(f"Best AUC metric in first part of training: {best_trainer.state.best_metric}")
+        
+        
+        # Run second part of training procedure
         if disable_vam_branch_initially:
             # Reset weights and keep training model with learning rate of VAM
             # branch set to 0 + weights of embed layer set to 0, during first 10 epochs
-            # model.load_state_dict(initial_weights)
+            model.load_state_dict(initial_weights)
             with torch.no_grad(): 
                 model.van_output_embed.weight.zero_()
                 model.van_output_embed.bias.zero_()
+            # args.output_dir = model_path[:-1] + "-part2"
 
             for i in range(epochs):
                 
                 # Get custom optimizer to disable learning in the projection layer of
-                # the VAM branch for the first 10 epochs
+                # the VAM branch for the first 5 epochs
                 optimizer, lr_scheduler = get_optimizer(self, model, args, 
                     train_dataset, val_dataset, data_train, train_opts,
                     disable_vam_branch=True, epoch_index=i+1)
                 
-                trainer1 = self._get_trainer(model, args, train_dataset, 
+                trainer = self._get_trainer(model, args, train_dataset, 
                                              val_dataset, optimizer, lr_scheduler)
-                trainer1.args.num_train_epochs = 1
+                trainer.args.num_train_epochs = 1
                 
-                trainer1.train()
+                trainer.train()
 
                 # metric = best_trainer.state.best_metric if best_trainer.state.best_metric is not None else 0.0
-                if trainer1.state.best_metric > best_metric:
-                    best_trainer = trainer1
-                    best_metric = trainer1.state.best_metric
-                    best_scenario_when_vam_disabled = True
+                if i == 10:
+                    print("Reached transition epoch")
+                if trainer.state.best_metric > best_metric and i != 10: # do not take best checkpoint right when the VAM branch is enabled again
+                    best_trainer = trainer
+                    best_metric = trainer.state.best_metric
+                    best_scenario_in_second_training = True
 
-            print(f"Best AUC metric in first part of training: {trainer1.state.best_metric}")
-            model_weights = copy.deepcopy(trainer1.model.state_dict())
-
-            # the trainer object "forgets" the best scenario, so we have to retrain
-            #if not best_scenario_when_vam_disabled: 
-            model.load_state_dict(model_weights)
-            optimizer, lr_scheduler = get_optimizer(self, model, args, 
-                train_dataset, val_dataset, data_train, train_opts,
-                disable_vam_branch=False)
-            
-            trainer2 = self._get_trainer(model, args, train_dataset, 
-                                        val_dataset, optimizer, lr_scheduler)
-            trainer2.args.num_train_epochs = epochs
-
-            trainer2.train()
-            if trainer2.state.best_metric > best_metric:
-                best_trainer = trainer2
-                best_metric = trainer2.state.best_metric
-            print(f"Best AUC metric in second part of training: {trainer2.state.best_metric}")
+                print(f"Best AUC metric in second part of training: {trainer.state.best_metric}")
         
+            if not best_scenario_in_second_training:
+                # The huggingface trainer object forgets the first training after
+                # the second training is launched. If better results are obtained
+                # in the first training, re-compute that training so that results get
+                # stored in the trainer.
+                # TODO: find a way to avoid having to do this
+
+                model.load_state_dict(initial_weights)
+
+                optimizer, lr_scheduler = get_optimizer(self, model, args, 
+                    train_dataset, val_dataset, data_train, train_opts,
+                    disable_vam_branch=False)
+                trainer = self._get_trainer(model, args, train_dataset, 
+                                            val_dataset, optimizer, lr_scheduler)
+                trainer.args.num_train_epochs = epochs
+                trainer.train()
+                best_trainer = trainer
+                best_metric = trainer.state.best_metric
+
         print(f"Best AUC metric: {best_trainer.state.best_metric}")
         return best_trainer
 
@@ -383,12 +391,12 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
 
 def load_pretrained_trajfusionnet(dataset_name: str):
     if dataset_name in ["pie", "combined"]:
-        checkpoint = "data/models/pie/TrajFusionNet/21Dec2024-16h56m47s_NEWPIE"
+        checkpoint = "data/models/pie/TrajFusionNet/26Dec2024-11h42m23s_PIE1"
     elif dataset_name == "jaad_all":
-        pass
+        checkpoint = "data/models/jaad/TrajFusionNet/25Dec2024-15h02m22s_ALL1"
     elif dataset_name == "jaad_beh":
-        checkpoint = "/home/francois/MASTER/TrajFusionNet/data/models/jaad/TrajFusionNet/20Dec2024-23h04m36s"
-    
+        checkpoint = "data/models/jaad/TrajFusionNet/25Dec2024-21h50m11s_BEH1"
+        
     pretrained_model = TrajFusionNetForClassification.from_pretrained(
         checkpoint,
         ignore_mismatched_sizes=True,

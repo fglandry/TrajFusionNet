@@ -15,7 +15,7 @@ from utils.data_load import DataGenerator
 PRED_LEN = 60
 
 
-class TrajFusionNet(HuggingFaceTimeSeriesModel):
+class TrajectoryTransformer(HuggingFaceTimeSeriesModel):
 
     def train(self,
               data_train: dict, 

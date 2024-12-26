@@ -105,6 +105,39 @@ class TrajectoryOverlays(metaclass=Singleton):
 
         if feature_type == "scene_context_with_ped_overlays_previous":
             # Add observed bounding boxes as overlays on image (first image in sequence)
+            #color_idx = 0
+            for idx, coords in enumerate(bbox_sequence):
+                if idx == 0 or ((idx+1) % 5 == 0): # add first bbox and then every 5th
+                    b_org = list(map(int, coords[0:4])).copy()
+                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = \
+                        np.array(ade_palette()[idx])[0:2]
+                    #color_idx += 1
+
+        else:
+            # Add predicted bounding boxes as overlays on image (last image in sequence)
+            #color_idx = 4
+            for idx, coords in enumerate(absolute_pred_coords):
+
+                b_org = list(map(int, coords[0:4])).copy()
+                
+                if (idx+1) % 5 == 0: # only add each 5th box
+                    img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = \
+                        np.array(ade_palette()[idx+15])[0:2] # np.array(ade_palette()[color_idx])[0:2]
+                    #color_idx += 1
+
+            # Add observed bbox at time t to forefront
+            #color_idx = 4
+            idx = len(bbox_sequence)-1
+            coords = bbox_sequence[idx]
+            b_org = list(map(int, coords[0:4])).copy()
+
+            img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = \
+                np.array(ade_palette()[idx])[0:2] # np.array(ade_palette()[color_idx-1])[0:2]
+
+        return img_features
+        
+        if feature_type == "scene_context_with_ped_overlays_previous":
+            # Add observed bounding boxes as overlays on image (first image in sequence)
             color_idx = 0
             for idx, coords in enumerate(bbox_sequence):
                 if idx == 0 or ((idx+1) % 5 == 0): # add first bbox and then every 5th
