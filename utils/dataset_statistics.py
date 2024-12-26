@@ -122,7 +122,7 @@ def calculate_stats_for_trajectory_data(data, labels, dataset_statistics,
         dataset_statistics["dataset_mins"]["trajectory"] = [-1654.0, -189.0, -1655.0, -120.0, 0.0]
         
 
-        # Get stas for 'box' + 'speed' + 'normalized_abs_box -----------------------------------------------
+        # Get stats for 'box' + 'speed' + 'normalized_abs_box -----------------------------------------------
         # Here, statistics include labels (pred_len=60):
         """
         dataset_statistics["dataset_means"]["trajectory"] = [-7.817597278751057, -2.797630704496746, 0.7966554592107592, 15.765265538056195, 0.46580601126806626, 0.5881889890930191, 0.49563012446195803, 0.7114383036465168, 2.7137792721052323]
