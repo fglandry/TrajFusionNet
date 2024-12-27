@@ -10,7 +10,7 @@ def get_dataset_statistics(data_train: dict, model_opts: dict,
         data_train [dict]: training data dictionary
         model_opts [dict]: model options dictionary
         use_precomputed_values [bool]: if set to True, precomputed values will be used
-                                       instead of recalculating values
+                                       instead of recomputing values
     """
     if use_precomputed_values:
         dataset_statistics = {
