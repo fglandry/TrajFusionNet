@@ -115,12 +115,12 @@ def calculate_stats_for_trajectory_data(data, labels, dataset_statistics,
 
         # Get stats for 'box' + 'speed' -----------------------------------------------
         # Here, statistics include labels (pred_len=60):
-        """
+        
         dataset_statistics["dataset_means"]["trajectory"] = [-7.817597278751057, -2.797630704496746, 0.7966554592107592, 15.765265538056195, 2.4889659647260074]
         dataset_statistics["dataset_std_devs"]["trajectory"] = [161.24783689412033, 14.863155394437634, 161.40917654572766, 29.585598109148503, 1.4469956924143323]
         dataset_statistics["dataset_maxs"]["trajectory"] = [1828.0, 126.0, 1864.0, 350.0, 4.0]
         dataset_statistics["dataset_mins"]["trajectory"] = [-1654.0, -189.0, -1655.0, -120.0, 0.0]
-        """
+        
 
         # Get stats for 'box' + 'speed' + 'normalized_abs_box -----------------------------------------------
         # Here, statistics include labels (pred_len=60):
@@ -135,12 +135,12 @@ def calculate_stats_for_trajectory_data(data, labels, dataset_statistics,
         
         # Get stats for 'box' + 'speed' -----------------------------------------------
         # Here, statistics include labels (pred_len=60):
-        
+        """
         dataset_statistics["dataset_means"]["trajectory"] = [-17.27282171389908, -6.375631717282119, 0.8653072058708721, 30.30301819033492, 2.7640398678012854]
         dataset_statistics["dataset_std_devs"]["trajectory"] = [225.56754977876653, 17.441062982192516, 225.14992865469864, 39.937830636813565, 1.2849233429522937]
         dataset_statistics["dataset_maxs"]["trajectory"] = [1479.0, 86.0, 1620.0, 350.0, 4.0]
         dataset_statistics["dataset_mins"]["trajectory"] = [-1654.0, -189.0, -1655.0, -120.0, 0.0]
-        
+        """
 
         """
         dataset_statistics["dataset_means"]["trajectory"] = [-7.817597278751057, -2.797630704496746, 0.7966554592107592, 15.765265538056195, 2.7137792721052323]

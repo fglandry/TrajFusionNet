@@ -110,7 +110,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
     def train_with_initial_vam_branch_disabling(self,
             model, epochs, args, train_dataset, 
             val_dataset, data_train, train_opts,
-            disable_vam_branch_initially=False):
+            disable_vam_branch_initially=True):
         
         initial_weights = copy.deepcopy(model.state_dict())
 
@@ -359,7 +359,8 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
                             labels,
                             self.config,
                             self.num_labels,
-                            return_dict)
+                            return_dict,
+                            class_w=self.class_w)
 
     def _concatenate_with_attention(self, self_attention, original_x, 
                                     tuple_to_concat, max_concat_size):
