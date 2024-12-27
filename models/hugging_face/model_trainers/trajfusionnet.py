@@ -73,8 +73,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         args = TrainingArguments(
             output_dir=model_path,
             remove_unused_columns=False,
-            evaluation_strategy="epoch", # "steps"
-            # eval_steps=50,
+            evaluation_strategy="epoch",
             save_strategy="epoch",
             learning_rate=train_opts["lr"],
             per_device_train_batch_size=batch_size, 
@@ -85,7 +84,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             load_best_model_at_end=True,
             metric_for_best_model="auc",
             push_to_hub=False,
-            max_steps=-1 # added
+            max_steps=-1
         )
         
 
