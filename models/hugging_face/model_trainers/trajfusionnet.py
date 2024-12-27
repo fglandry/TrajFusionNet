@@ -359,8 +359,7 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
                             labels,
                             self.config,
                             self.num_labels,
-                            return_dict,
-                            class_w=self.class_w)
+                            return_dict)
 
     def _concatenate_with_attention(self, self_attention, original_x, 
                                     tuple_to_concat, max_concat_size):
