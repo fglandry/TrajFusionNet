@@ -269,7 +269,8 @@ class VanillaTransformer(ActionPredict):
         self._mlp_units = num_hidden_units
         self._combined_model = True
 
-    def get_data(self, data_type, data_raw, model_opts):
+    def get_data(self, data_type, data_raw, model_opts,
+                 *args, **kwargs):
 
         # Get model opts specific to each sub-model
         self.combined_model_ops = copy.deepcopy(model_opts)
@@ -279,7 +280,9 @@ class VanillaTransformer(ActionPredict):
         # assert self.combined_model_ops['obs_length'] == 16
         self.obs_length = self.combined_model_ops['obs_length']
 
-        combined_model_data = super(VanillaTransformer, self).get_data(data_type, data_raw, self.combined_model_ops, combined_model=self._combined_model)
+        combined_model_data = super(VanillaTransformer, self).get_data(
+            data_type, data_raw, self.combined_model_ops, 
+            combined_model=self._combined_model)
 
         return combined_model_data
 
@@ -606,7 +609,8 @@ class BaseTransformerCrossAttentionV2(ActionPredict):
         self._mlp_units = num_hidden_units
         self._combined_model = True
 
-    def get_data(self, data_type, data_raw, model_opts):
+    def get_data(self, data_type, data_raw, model_opts,
+                 submodels_paths: dict = None):
 
         # Get model opts specific to each sub-model
         self.combined_model_ops = copy.deepcopy(model_opts)
@@ -620,7 +624,9 @@ class BaseTransformerCrossAttentionV2(ActionPredict):
         self.combined_model_ops['process'] = False
         self.combined_model_ops['backbone'] = 'c3d'
 
-        combined_model_data = super().get_data(data_type, data_raw, self.combined_model_ops, combined_model=self._combined_model)
+        combined_model_data = super().get_data(data_type, data_raw, self.combined_model_ops, 
+                                               combined_model=self._combined_model,
+                                               submodels_paths=submodels_paths)
 
         return combined_model_data
 

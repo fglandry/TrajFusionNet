@@ -1,6 +1,6 @@
-from typing import Optional, Tuple, Union
 import copy
-import math
+from typing import Optional, Tuple, Union
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -9,15 +9,15 @@ from transformers import VanModel, TrainingArguments, Trainer, TimesformerConfig
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-
 from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
 from models.hugging_face.model_trainers.trajectorytransformerb import load_pretrained_encoder_transformer
-from models.hugging_face.model_trainers.van import load_pretrained_van
+from models.hugging_face.model_trainers.van import load_pretrained_van, VAN
 from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, normalize_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
 from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
 from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.custom_layers_pytorch import SelfAttention
 from utils.data_load import DataGenerator
+from utils.action_predict_utils.run_in_subprocess import run_and_capture_model_path
 
 NET_INNER_DIM = 512
 NET_OUTER_DIM = 40
@@ -38,6 +38,8 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
               hyperparams: dict = None,
               class_w: list = None,
               test_only: bool = False,
+              train_end_to_end: bool = False,
+              submodels_paths: dict = None,
               *args, **kwargs):
         """ Train model
         Args:
@@ -52,15 +54,31 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
 
         print("Starting model loading for model TrajFusionNet ===========================")
 
+        """
+        submodels_paths = {
+            "traj_tf_path": "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24",
+            "enc_tf_path": "data/models/jaad/TrajectoryTransformerb/20Nov2024-12h02m51s_TJ8",
+            "van_path": "data/models/jaad/VAN/25Dec2024-11h25m13s_VA6B",
+            "van_prev_path": "data/models/jaad/VAN/25Dec2024-13h28m35s_VA7B"
+        }
+        """
+
         # Get hyperparameters (if specified) and model configs
         hyperparams = hyperparams.get(self.__class__.__name__.lower(), {}) if hyperparams else {}
         config_for_huggingface = TimeSeriesTransformerConfig()
         self.class_w = class_w
 
+        # If specified, start by training submodels first 
+        if train_end_to_end:
+            submodels_paths = train_submodels(
+                dataset=kwargs["model_opts"]["dataset_full"],
+                submodels_paths=submodels_paths)
+
         model = TrajFusionNetForClassification(config_for_huggingface, 
                                                class_w=class_w,
                                                dataset_statistics=dataset_statistics,
-                                               dataset_name=kwargs["model_opts"]["dataset_full"])
+                                               dataset_name=kwargs["model_opts"]["dataset_full"],
+                                               submodels_paths=submodels_paths)
         summary(model)
 
         # Get datasets
@@ -87,20 +105,20 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             max_steps=-1
         )
         
-
-        # Train model
-        if not test_only:
-            print("Starting training of model TrajFusionNet ===========================")
-            trainer = self.train_with_initial_vam_branch_disabling(
-                model, epochs, args, train_dataset,
-                val_dataset, data_train, train_opts
-            )
-        else:
+        if test_only:
             optimizer, lr_scheduler = get_optimizer(self, model, args, 
                     train_dataset, val_dataset, data_train, train_opts)
             trainer = self._get_trainer(model, args, train_dataset, 
                                         val_dataset, optimizer, lr_scheduler)
-        
+        else:
+            # Train model
+            print("Starting training of model TrajFusionNet ===========================")
+            trainer = self.train_with_initial_vam_branch_disabling(
+                model, epochs, args, train_dataset,
+                val_dataset, data_train, train_opts,
+                submodels_paths=submodels_paths
+            )
+     
         return {
             "trainer": trainer,
             "val_transform": val_transforms_dicts
@@ -109,7 +127,8 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
     def train_with_initial_vam_branch_disabling(self,
             model, epochs, args, train_dataset, 
             val_dataset, data_train, train_opts,
-            disable_vam_branch_initially=True):
+            disable_vam_branch_initially=True,
+            submodels_paths=None):
         
         initial_weights = copy.deepcopy(model.state_dict())
 
@@ -186,7 +205,6 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         print(f"Best AUC metric: {best_trainer.state.best_metric}")
         return best_trainer
 
-
     def _get_trainer(self, model, args, train_dataset, 
                      val_dataset, optimizer, lr_scheduler):
         trainer = Trainer(
@@ -231,7 +249,8 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
                  config_for_huggingface: TimeSeriesTransformerConfig,
                  class_w: list = None,
                  dataset_statistics: dict = None,
-                 dataset_name: str = ""
+                 dataset_name: str = "",
+                 submodels_paths: dict = None
         ):
         super().__init__(config_for_huggingface)
         self._device = get_device()
@@ -256,16 +275,19 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
         self.van1 = load_pretrained_van( # predicted ped overlays
             dataset_name,
             is_predicted_overlays=True,
-            add_classification_head=False)
+            add_classification_head=False,
+            submodels_paths=submodels_paths)
 
         self.van2 = load_pretrained_van( # observed ped overlays
             dataset_name,
             is_predicted_overlays=False,
-            add_classification_head=False)
+            add_classification_head=False,
+            submodels_paths=submodels_paths)
 
         # Get pretrained encoder transformer -----------------------------------------
         self.traj_class_TF = load_pretrained_encoder_transformer(dataset_name,
-                                                                 add_classification_head=False)
+                                                                 add_classification_head=False,
+                                                                 submodels_paths=submodels_paths)
 
         # Classifier layers
         if self.combine_branches_with_attention:
@@ -387,6 +409,35 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
         self.return_dict = return_dict
         return return_dict
 
+def train_submodels(dataset: str,
+                    submodels_paths: dict):
+
+    # SAM module ===============================================================
+    
+    # Train encoder transformer
+    enc_tf_path = run_and_capture_model_path(
+        ["python3", "train_test.py", "-c", "config_files/TrajectoryTransformerb.yaml", 
+         "-d", dataset])
+
+    # VAM module ===============================================================
+    
+    # Train VAN with image context at time t and predicted trajectory overlays
+    van_path = run_and_capture_model_path(
+        ["python3", "train_test.py", "-c", "config_files/VAN.yaml", 
+         "-d", dataset])
+    
+    # Train VAN with image context at time t-15 and observed trajectory overlays
+    van_prev_path = run_and_capture_model_path(
+        ["python3", "train_test.py", "-c", "config_files/VAN_previous.yaml", 
+         "-d", dataset])
+    
+    submodels_paths.update({
+        "enc_tf_path": enc_tf_path,
+        "van_path": van_path,
+        "van_prev_path": van_prev_path
+    })
+
+    return submodels_paths
 
 def load_pretrained_trajfusionnet(dataset_name: str):
     if dataset_name in ["pie", "combined"]:

@@ -2551,7 +2551,8 @@ class VAN(Static):
         self._weights = weights
         self._backbone = 'c3d'
 
-    def get_data(self, data_type, data_raw, model_opts):
+    def get_data(self, data_type, data_raw, model_opts,
+                 *args, **kwargs):
 
         assert len(model_opts['obs_input_type']) == 1
         # assert model_opts['obs_length'] == 16

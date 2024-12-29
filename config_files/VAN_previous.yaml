@@ -1,6 +1,6 @@
 model_opts:
   model: VAN
-  obs_input_type: [scene_context_with_ped_overlays]
+  obs_input_type: [scene_context_with_ped_overlays_previous]
   apply_class_weights: True
   generator: True
   frameworks:
