@@ -148,11 +148,6 @@ class VanillaTransformerForForecast(TimeSeriesTransformerPreTrainedModel):
 
         self.transformer = TrajectoryTransformerModel(config_for_huggingface, config_for_timeseries_lib)
 
-        classifier_hidden_size = config_for_timeseries_lib.num_class # number of neurons in last Linear layer at the end of model
-        self.classifier = nn.Linear(
-            classifier_hidden_size, config_for_huggingface.num_labels) \
-            if config_for_huggingface.num_labels > 0 else nn.Identity()
-
         self.timeseries_config = config_for_timeseries_lib
 
         self.post_init() # Initialize weights and apply final processing

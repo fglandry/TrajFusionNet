@@ -68,7 +68,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         config_for_huggingface = TimeSeriesTransformerConfig()
         self.class_w = class_w
 
-        # If specified, start by training submodels first 
+        # If training end-to-end, start by training submodels
         if train_end_to_end:
             submodels_paths = train_submodels(
                 dataset=kwargs["model_opts"]["dataset_full"],
@@ -115,8 +115,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             print("Starting training of model TrajFusionNet ===========================")
             trainer = self.train_with_initial_vam_branch_disabling(
                 model, epochs, args, train_dataset,
-                val_dataset, data_train, train_opts,
-                submodels_paths=submodels_paths
+                val_dataset, data_train, train_opts
             )
      
         return {
@@ -127,8 +126,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
     def train_with_initial_vam_branch_disabling(self,
             model, epochs, args, train_dataset, 
             val_dataset, data_train, train_opts,
-            disable_vam_branch_initially=True,
-            submodels_paths=None):
+            disable_vam_branch_initially=True):
         
         initial_weights = copy.deepcopy(model.state_dict())
 

@@ -273,7 +273,7 @@ class EncoderTransformer(TimeSeriesTransformerPreTrainedModel):
 def load_pretrained_encoder_transformer(dataset_name: str,
                                         add_classification_head: bool = True,
                                         submodels_paths: dict = None):
-    config_for_trajectory_predictor = get_config_for_timeseries_lib(
+    config_for_encoder_tf = get_config_for_timeseries_lib(
             encoder_input_size=5, seq_len=75, hyperparams={})
     if submodels_paths:
         checkpoint = submodels_paths["enc_tf_path"]
@@ -294,13 +294,13 @@ def load_pretrained_encoder_transformer(dataset_name: str,
     if add_classification_head:
         pretrained_model = EncoderTransformerForClassification.from_pretrained(
             checkpoint,
-            config_for_timeseries_lib=config_for_trajectory_predictor,
+            config_for_timeseries_lib=config_for_encoder_tf,
             ignore_mismatched_sizes=True,
             dataset_name=dataset_name)
     else:
         pretrained_model = EncoderTransformer.from_pretrained(
             checkpoint,
-            config_for_timeseries_lib=config_for_trajectory_predictor,
+            config_for_timeseries_lib=config_for_encoder_tf,
             ignore_mismatched_sizes=True,
             dataset_name=dataset_name,
             submodels_paths=submodels_paths)

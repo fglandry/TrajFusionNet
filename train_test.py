@@ -82,6 +82,11 @@ def run(config_file=None,
 
     with open(config_file, 'r') as f:
         model_configs = yaml.safe_load(f)
+    if dataset_override:
+        model_configs["exp_opts"]["datasets"] = [dataset_override]
+        with open(config_file, 'w') as f:
+            yaml.dump(model_configs, f, Dumper=IndentedDumper,
+                      default_flow_style=None, sort_keys=False)
 
     # Update configs based on the model configs
     for k in ['model_opts', 'net_opts']:
@@ -95,8 +100,7 @@ def run(config_file=None,
 
     # update model and training options from the config file
     for dataset_idx, dataset in enumerate(model_configs['exp_opts']['datasets']):
-        if dataset_override:
-            dataset = dataset_override
+        
         configs['data_opts']['sample_type'] = 'beh' if 'beh' in dataset else 'all'
         configs['data_opts']['seq_type'] = seq_type_override if seq_type_override else configs['data_opts']['seq_type']
         configs['model_opts']['overlap'] = 0.6 if 'pie' in dataset else 0.8
@@ -306,6 +310,19 @@ def combine_beh_seq(beh_seq_jaad, beh_seq_pie):
     beh_seq['obd_speed'] = beh_seq_jaad['vehicle_act'] + beh_seq_pie['obd_speed']
 
     return beh_seq
+
+class IndentedDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super(IndentedDumper, self).increase_indent(flow, False)
+
+def represent_bool_as_capital(dumper, value):
+    return dumper.represent_scalar('tag:yaml.org,2002:bool', str(value))
+
+def represent_dict_block(dumper, data):
+    return dumper.represent_mapping(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data, flow_style=False)
+
+IndentedDumper.add_representer(bool, represent_bool_as_capital)
+IndentedDumper.add_representer(dict, represent_dict_block)
 
 def usage():
     """
