@@ -139,6 +139,7 @@ class ActionPredict(object):
                                      is_feature_static=False,
                                      store_data_only=False,
                                      model_opts=None,
+                                     submodels_paths: dict = None,
                                      debug=False):
         """
         Generate visual feature sequences by reading and processing images

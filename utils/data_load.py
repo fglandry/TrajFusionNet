@@ -262,7 +262,8 @@ def get_static_context_data(self,
                             model_opts, 
                             data, 
                             data_gen_params, 
-                            feature_type):
+                            feature_type,
+                            submodels_paths: dict = None):
     # Get some settings from config
     concatenate_frames = "concatenate_frames" in model_opts and model_opts["concatenate_frames"]["enabled"]
     add_optical_flow = "flow_optical" in feature_type
@@ -306,4 +307,5 @@ def get_static_context_data(self,
                                              full_rel_bbox_seq=full_rel_bbox_seq,
                                              full_veh_speed=full_veh_speed,
                                              model_opts=model_opts,
+                                             submodels_paths=submodels_paths,
                                              **data_gen_params)  
