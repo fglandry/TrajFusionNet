@@ -3,7 +3,7 @@ from typing import Any
 
 
 def get_dataset_statistics(data_train: dict, model_opts: dict, 
-                           use_precomputed_values: bool = True) -> dict:
+                           use_precomputed_values: bool = False) -> dict:
     """ Get dataset statistics for various data features (mean, std dev, etc.). 
         Statistics are only computed on training data to avoid data leakage
     Args:
@@ -59,7 +59,7 @@ def get_dataset_statistics(data_train: dict, model_opts: dict,
                                         data_train["data"][1],
                                         dataset_statistics,
                                         model_opts,
-                                        use_precomputed_values=use_precomputed_values)
+                                        use_precomputed_values=True)
 
     return dataset_statistics
 

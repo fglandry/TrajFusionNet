@@ -27,8 +27,10 @@ class TrajectoryOverlays(metaclass=Singleton):
         }
 
         calculate_stats_for_trajectory_data(
-            None, None, self.dataset_statistics,
-            include_labels=True, debug=True)
+            None, None, 
+            self.dataset_statistics, model_opts,
+            include_labels=True, 
+            use_precomputed_values=True)
 
         # Get pretrained trajectory predictor -------------------------------------------
         config_for_trajectory_predictor = get_config_for_trajectory_pred(

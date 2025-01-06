@@ -11,7 +11,7 @@ model_opts:
     enabled: True
     static_features_indexes: [0]
 exp_opts:
-  datasets: [jaad_all]
+  datasets: [jaad_beh]
   batch_size: [16, 4, 4]
   epochs: [15, 6, 6]
   lr: [5.0e-05, 5.0e-05, 5.0e-05]
