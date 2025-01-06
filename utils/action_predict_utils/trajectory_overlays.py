@@ -170,3 +170,4 @@ class TrajectoryOverlays(metaclass=Singleton):
                 np.array(ade_palette()[color_idx-1])[0:2]
 
         return img_features
+        

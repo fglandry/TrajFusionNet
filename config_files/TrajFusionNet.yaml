@@ -34,4 +34,4 @@ exp_opts:
   datasets: [jaad_beh]
   batch_size: [16]
   epochs: [15]
-  lr: [5.0e-06]
+  lr: [1.0e-06]

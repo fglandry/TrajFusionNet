@@ -126,7 +126,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
     def train_with_initial_vam_branch_disabling(self,
             model, epochs, args, train_dataset, 
             val_dataset, data_train, train_opts,
-            disable_vam_branch_initially=True):
+            disable_vam_branch_initially=False):
         
         initial_weights = copy.deepcopy(model.state_dict())
 
