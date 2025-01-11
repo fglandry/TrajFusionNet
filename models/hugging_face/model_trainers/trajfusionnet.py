@@ -134,17 +134,50 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         best_metric = 0
         best_trainer = None
         best_scenario_in_second_training = False
+        
+        
+        # model.load_state_dict(initial_weights)
+        with torch.no_grad(): 
+            model.van_output_embed.weight.zero_()
+            model.van_output_embed.bias.zero_()
+        # args.output_dir = model_path[:-1] + "-part2"
 
+        for i in range(epochs):
+            
+            # Get custom optimizer to disable learning in the projection layer of
+            # the VAM branch for the first 5 epochs
+            optimizer, lr_scheduler = get_optimizer(self, model, args, 
+                train_dataset, val_dataset, data_train, train_opts,
+                disable_vam_branch=True, epoch_index=i+1)
+            
+            trainer = self._get_trainer(model, args, train_dataset, 
+                                            val_dataset, optimizer, lr_scheduler)
+            trainer.args.num_train_epochs = 1
+            
+            trainer.train()
+
+            if trainer.state.best_metric > best_metric: # do not take best checkpoint right when the VAM branch is enabled again
+                best_trainer = trainer
+                best_metric = trainer.state.best_metric
+                best_scenario_in_second_training = True
+
+            print(f"Best AUC metric in first part of training: {trainer.state.best_metric}")
+
+
+        trainer.args.num_train_epochs = epochs
+        
         optimizer, lr_scheduler = get_optimizer(self, model, args, 
             train_dataset, val_dataset, data_train, train_opts,
             disable_vam_branch=False)
         trainer = self._get_trainer(model, args, train_dataset, 
                                      val_dataset, optimizer, lr_scheduler)
-        
+
         trainer.train()
-        best_trainer = trainer
-        best_metric = trainer.state.best_metric if trainer.state.best_metric else 0
-        print(f"Best AUC metric in first part of training: {best_trainer.state.best_metric}")
+        print(f"Best AUC metric in second part of training: {trainer.state.best_metric}")
+        if trainer.state.best_metric > best_metric:
+            best_trainer = trainer
+            best_metric = trainer.state.best_metric if trainer.state.best_metric else 0
+
         
         
         # Run second part of training procedure
@@ -172,9 +205,9 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
                 trainer.train()
 
                 # metric = best_trainer.state.best_metric if best_trainer.state.best_metric is not None else 0.0
-                if i == 10:
-                    print("Reached transition epoch")
-                if trainer.state.best_metric > best_metric and i != 10: # do not take best checkpoint right when the VAM branch is enabled again
+                if i == 15:
+                    print("Reached transition epoch - VAN is now training")
+                if trainer.state.best_metric > best_metric and not (i >= 15): # do not take best checkpoint right when the VAM branch is enabled again
                     best_trainer = trainer
                     best_metric = trainer.state.best_metric
                     best_scenario_in_second_training = True

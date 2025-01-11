@@ -31,7 +31,7 @@ from models.multi_branch_models.combined_models import *
 from utils.global_variables import get_time_writing_to_disk
 from utils.hyperparameters import HyperparamsOrchestrator
 
-SEED = 42
+SEED = 0
 
 def write_to_yaml(yaml_path=None, data=None):
     """

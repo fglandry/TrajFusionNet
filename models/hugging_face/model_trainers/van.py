@@ -244,8 +244,12 @@ def load_pretrained_van(dataset_name: str,
     else:
         label2id, id2label = get_class_labels_info()
         if dataset_name in ["pie", "combined"]:
-            checkpoint1 = "data/models/pie/VAN/14Oct2024-00h13m09s_VA10"
-            checkpoint2 = "data/models/pie/VAN/14Oct2024-10h37m58s_VA11"
+            checkpoint1 = "data/models/pie/VAN/09Jan2025-09h32m13s"
+            checkpoint2 = "data/models/pie/VAN/09Jan2025-10h06m03s"
+            #checkpoint1 = "data/models/pie/VAN/08Jan2025-13h04m40s"
+            #checkpoint2 = "data/models/pie/VAN/08Jan2025-13h35m54s"
+            #checkpoint1 = "data/models/pie/VAN/14Oct2024-00h13m09s_VA10"
+            #checkpoint2 = "data/models/pie/VAN/14Oct2024-10h37m58s_VA11"
             #checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
             #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
         elif dataset_name == "jaad_all":
@@ -254,8 +258,6 @@ def load_pretrained_van(dataset_name: str,
             #checkpoint1 = "data/models/jaad/VAN/12Oct2024-20h59m24s_VA6"
             #checkpoint2 = "data/models/jaad/VAN/12Oct2024-23h06m29s_VA7"
         elif dataset_name == "jaad_beh":
-            #checkpoint1 = "data/models/jaad/VAN/05Jan2025-18h24m10s"
-            #checkpoint2 = "data/models/jaad/VAN/05Jan2025-18h38m03s"
             checkpoint1 = "data/models/jaad/VAN/25Dec2024-16h43m58s_VA8B"
             checkpoint2 = "data/models/jaad/VAN/25Dec2024-21h06m13s_VA9B"
             #checkpoint1 = "data/models/jaad/VAN/13Oct2024-20h16m00s_VA8"
