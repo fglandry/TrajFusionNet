@@ -31,7 +31,6 @@ class VAN(HuggingFaceImageClassificationModel):
               train_opts: dict = None,  
               generator: bool = False,
               dataset_statistics: dict = None,
-              class_w = list,
               test_only: bool = False,
               **kwargs
         ):
@@ -42,14 +41,12 @@ class VAN(HuggingFaceImageClassificationModel):
             model_path [str]: path where the model will be saved
             train_opts [str]: training options (includes learning rate)
             dataset_statistics [dict]: contains dataset statistics such as avg / std dev per feature
-            class_w [list]: class weights
             test_only [bool]: is set to True, model will not be trained, only tested
         """
     
         print("Starting model loading for model VAN: Visual Attention Network ===========================")
 
         self._device = get_device()
-        self.class_w = torch.tensor(class_w).to(self._device)
         image_processor, config = get_van_image_processor_and_config(
             data_train, dataset_statistics
         )

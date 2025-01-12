@@ -1526,7 +1526,7 @@ class ActionPredict(object):
     def train_trajectory_pred_tf_first(self, dataset: str):
         """ The trajectory prediction transformer needs to be trained first
             so that it can later be used for predicting future pedestrian 
-            bounding boxes, which will be used as overlays on context scene 
+            bounding boxes, which will then be used as overlays on context scene 
             images in the VAM branch.
         """
 
@@ -1538,11 +1538,7 @@ class ActionPredict(object):
         submodels_paths = {
             "traj_tf_path": traj_tf_path
         }
-        """
-        submodels_paths = {
-            "traj_tf_path": "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
-        }
-        """
+        
         return submodels_paths
 
     def get_model(self, data_params):

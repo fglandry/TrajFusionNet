@@ -30,6 +30,7 @@ from models.models import *
 from models.multi_branch_models.combined_models import *
 from utils.global_variables import get_time_writing_to_disk
 from utils.hyperparameters import HyperparamsOrchestrator
+from utils.utils import IndentedDumper
 
 SEED = 0
 
@@ -310,19 +311,6 @@ def combine_beh_seq(beh_seq_jaad, beh_seq_pie):
     beh_seq['obd_speed'] = beh_seq_jaad['vehicle_act'] + beh_seq_pie['obd_speed']
 
     return beh_seq
-
-class IndentedDumper(yaml.Dumper):
-    def increase_indent(self, flow=False, indentless=False):
-        return super(IndentedDumper, self).increase_indent(flow, False)
-
-def represent_bool_as_capital(dumper, value):
-    return dumper.represent_scalar('tag:yaml.org,2002:bool', str(value))
-
-def represent_dict_block(dumper, data):
-    return dumper.represent_mapping(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data, flow_style=False)
-
-IndentedDumper.add_representer(bool, represent_bool_as_capital)
-IndentedDumper.add_representer(dict, represent_dict_block)
 
 def usage():
     """

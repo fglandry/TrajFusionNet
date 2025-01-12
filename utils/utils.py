@@ -1,14 +1,16 @@
 import math
 import sys
-import PIL
 import os
 import pickle
 import time
-import torch
 from typing import Union
-import numpy as np
+import yaml
+
 import cv2
+import numpy as np
+import PIL
 from tensorflow.keras.preprocessing.image import load_img
+import torch
 from sklearn.metrics import accuracy_score
 
 from utils.global_variables import get_time_writing_to_disk, set_time_writing_to_disk
@@ -833,3 +835,16 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
+
+class IndentedDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super(IndentedDumper, self).increase_indent(flow, False)
+
+def represent_bool_as_capital(dumper, value):
+    return dumper.represent_scalar('tag:yaml.org,2002:bool', str(value))
+
+def represent_dict_block(dumper, data):
+    return dumper.represent_mapping(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, data, flow_style=False)
+
+IndentedDumper.add_representer(bool, represent_bool_as_capital)
+IndentedDumper.add_representer(dict, represent_dict_block)
