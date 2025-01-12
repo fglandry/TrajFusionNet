@@ -31,7 +31,7 @@ model_opts:
       cell_type: gru
       backbone: vgg16
 exp_opts:
-  datasets: [jaad_all]
+  datasets: [jaad_beh]
   batch_size: [16]
-  epochs: [15]
+  epochs: [2]
   lr: [5.0e-06]
