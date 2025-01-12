@@ -54,6 +54,15 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
 
         print("Starting model loading for model TrajFusionNet ===========================")
 
+        """
+        submodels_paths = {
+            "traj_tf_path": "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24",
+            "enc_tf_path": "data/models/jaad/TrajectoryTransformerb/20Nov2024-12h02m51s_TJ8",
+            "van_path": "data/models/jaad/VAN/25Dec2024-11h25m13s_VA6B",
+            "van_prev_path": "data/models/jaad/VAN/25Dec2024-13h28m35s_VA7B"
+        }
+        """
+
         # Get hyperparameters (if specified) and model configs
         hyperparams = hyperparams.get(self.__class__.__name__.lower(), {}) if hyperparams else {}
         config_for_huggingface = TimeSeriesTransformerConfig()

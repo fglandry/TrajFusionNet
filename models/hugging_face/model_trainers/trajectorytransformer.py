@@ -240,9 +240,9 @@ def load_pretrained_trajectory_transformer(dataset_name: str,
         checkpoint = submodels_paths["traj_tf_path"]
     else:
         if dataset_name in ["pie", "combined"]:
-            checkpoint = "data/models/pie/TrajectoryTransformer/09Jan2025-08h21m06s"
+            #checkpoint = "data/models/pie/TrajectoryTransformer/09Jan2025-08h21m06s"
             #checkpoint = "data/models/pie/TrajectoryTransformer/08Jan2025-12h01m11s"
-            #checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
+            checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
         elif dataset_name == "jaad_all":
             checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
         elif dataset_name == "jaad_beh":
