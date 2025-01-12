@@ -15,7 +15,8 @@ class TrajectoryOverlays(metaclass=Singleton):
     """
 
     def __init__(self,
-                 model_opts: dict):
+                 model_opts: dict,
+                 submodels_paths: dict = None):
 
         self._dataset = model_opts["dataset_full"]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,19 +28,24 @@ class TrajectoryOverlays(metaclass=Singleton):
         }
 
         calculate_stats_for_trajectory_data(
-            None, None, self.dataset_statistics,
-            include_labels=True, debug=True)
+            None, None, 
+            self.dataset_statistics, model_opts,
+            include_labels=True, 
+            use_precomputed_values=True)
 
         # Get pretrained trajectory predictor -------------------------------------------
         config_for_trajectory_predictor = get_config_for_trajectory_pred(
             encoder_input_size=5, seq_len=15, hyperparams={}, pred_len=60)
-        if self._dataset in ["pie", "combined"]:
-            checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
-        elif self._dataset == "jaad_all":
-            checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
-        elif self._dataset == "jaad_beh":
-            #checkpoint = "data/models/jaad/TrajectoryTransformer/20Dec2024-14h24m55s_BE26"
-            checkpoint = "data/models/jaad/TrajectoryTransformer/20Nov2024-10h50m14s_TE25"
+        if submodels_paths:
+            checkpoint = submodels_paths["traj_tf_path"]
+        else:
+            if self._dataset in ["pie", "combined"]:
+                checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
+            elif self._dataset == "jaad_all":
+                checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
+            elif self._dataset == "jaad_beh":
+                #checkpoint = "data/models/jaad/TrajectoryTransformer/20Dec2024-14h24m55s_BE26"
+                checkpoint = "data/models/jaad/TrajectoryTransformer/20Nov2024-10h50m14s_TE25"
         pretrained_model = VanillaTransformerForForecast.from_pretrained(
             checkpoint,
             config_for_timeseries_lib=config_for_trajectory_predictor,
@@ -164,3 +170,4 @@ class TrajectoryOverlays(metaclass=Singleton):
                 np.array(ade_palette()[color_idx-1])[0:2]
 
         return img_features
+        

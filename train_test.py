@@ -30,8 +30,9 @@ from models.models import *
 from models.multi_branch_models.combined_models import *
 from utils.global_variables import get_time_writing_to_disk
 from utils.hyperparameters import HyperparamsOrchestrator
+from utils.utils import IndentedDumper
 
-SEED = 42
+SEED = 0
 
 def write_to_yaml(yaml_path=None, data=None):
     """
@@ -57,7 +58,11 @@ def action_prediction(model_name):
             return cls
     raise Exception('Model {} is not valid!'.format(model_name))
 
-def run(config_file=None, test_only=False,
+def run(config_file=None,
+        dataset_override=None,
+        seq_type_override=None,  
+        test_only=False,
+        train_end_to_end=False,
         free_memory=True, 
         compute_time_writing_to_disk=False,
         tune_hyperparameters=False):
@@ -78,6 +83,11 @@ def run(config_file=None, test_only=False,
 
     with open(config_file, 'r') as f:
         model_configs = yaml.safe_load(f)
+    if dataset_override:
+        model_configs["exp_opts"]["datasets"] = [dataset_override]
+        with open(config_file, 'w') as f:
+            yaml.dump(model_configs, f, Dumper=IndentedDumper,
+                      default_flow_style=None, sort_keys=False)
 
     # Update configs based on the model configs
     for k in ['model_opts', 'net_opts']:
@@ -91,7 +101,9 @@ def run(config_file=None, test_only=False,
 
     # update model and training options from the config file
     for dataset_idx, dataset in enumerate(model_configs['exp_opts']['datasets']):
+        
         configs['data_opts']['sample_type'] = 'beh' if 'beh' in dataset else 'all'
+        configs['data_opts']['seq_type'] = seq_type_override if seq_type_override else configs['data_opts']['seq_type']
         configs['model_opts']['overlap'] = 0.6 if 'pie' in dataset else 0.8
         configs['model_opts']['dataset'] = dataset.split('_')[0]
         configs['model_opts']['dataset_full'] = dataset
@@ -129,9 +141,14 @@ def run(config_file=None, test_only=False,
             hyperparams = hyperparams_orchestrator.get_next_case()
             if hyperparams:
                 print(f"Training model with hyperparams set {i}: {str(hyperparams[model][submodel])}")
-            train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
+            saved_files_path = \
+                train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
                              beh_seq_test_cross_dataset, hyperparams,
-                             test_only=test_only)
+                             test_only=test_only,
+                             train_end_to_end=train_end_to_end)
+        if dataset_override:
+            break
+    return saved_files_path # return path for last trained model
 
         
 def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test, 
@@ -139,7 +156,8 @@ def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
                      free_memory=True, 
                      compute_time_writing_to_disk=False,
                      enable_cross_dataset_test=False,
-                     test_only=False):
+                     test_only=False,
+                     train_end_to_end=False):
     
     is_huggingface = configs['model_opts'].get("frameworks") and configs['model_opts']["frameworks"]["hugging_faces"]
 
@@ -158,7 +176,8 @@ def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
         free_memory=free_memory,
         train_opts=configs['train_opts'],
         hyperparams=hyperparams,
-        test_only=test_only
+        test_only=test_only,
+        train_end_to_end=train_end_to_end
     )
     
     if free_memory:
@@ -228,6 +247,8 @@ def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
 
     if compute_time_writing_to_disk:
         print(f"Total time writing to disk is: {get_time_writing_to_disk()}")
+
+    return saved_files_path
 
 
 def get_trajectory_sequences(configs, free_memory=False,
@@ -317,7 +338,8 @@ def set_global_determinism(seed=SEED):
 if __name__ == '__main__':
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
-                                   'hc:', ['help', 'config_file', 'test_only'])
+                                   'hc:d:s:', ['help', 'config_file', 'dataset', 'seq_type',
+                                               'test_only', 'train_end_to_end'])
     except getopt.GetoptError as err:
         print(str(err))
         usage()
@@ -327,17 +349,23 @@ if __name__ == '__main__':
 
     config_file = None
     model_name = None
-    dataset = None
-    test_only = False
+    dataset, seq_type = None, None
+    test_only, train_end_to_end = False, False
 
     for o, a in opts:
         if o in ["-h", "--help"]:
             usage()
             sys.exit(2)
-        elif o in ['-c', '--config_file']:
+        elif o in ["-c", "--config_file"]:
             config_file = a
+        elif o in ["-d", "--dataset"]:
+            dataset = a
+        elif o in ["-s", "--seq_type"]:
+            seq_type = a
         elif o in ["--test_only"]:
             test_only = True
+        elif o in ["--train_end_to_end"]:
+            train_end_to_end = True
 
 
     # if neither the config file or model name are provided
@@ -346,7 +374,11 @@ if __name__ == '__main__':
         usage()
         sys.exit(2)
 
-    run(
+    saved_files_path = run(
         config_file=config_file,
-        test_only=test_only
+        test_only=test_only,
+        train_end_to_end=train_end_to_end,
+        dataset_override=dataset,
+        seq_type_override=seq_type
     )
+    print(f"Model saved under: {saved_files_path}")

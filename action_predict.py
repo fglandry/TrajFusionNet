@@ -18,6 +18,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
 
 from models.custom_layers import CustomAttention, T2V
+from utils.action_predict_utils.run_in_subprocess import run_and_capture_model_path
 from utils.action_predict_utils.trajectory_overlays import TrajectoryOverlays
 from utils.action_predict_utils.sequences import compute_sequences
 from utils.data_load import get_generator, get_static_context_data
@@ -139,6 +140,7 @@ class ActionPredict(object):
                                      is_feature_static=False,
                                      store_data_only=False,
                                      model_opts=None,
+                                     submodels_paths: dict = None,
                                      debug=False):
         """
         Generate visual feature sequences by reading and processing images
@@ -250,10 +252,11 @@ class ActionPredict(object):
                             img_features = img_pad(cropped_image, mode='pad_resize', size=target_dim[0])
                             show_image(img_features) if debug else None
                         elif 'ped_overlays' in crop_type:
-                            img_features = TrajectoryOverlays(model_opts).compute_trajectory_overlays(
-                                img_data, feature_type,
-                                full_bbox_sequences, full_rel_bbox_seq, 
-                                full_veh_speed, i)
+                            img_features = TrajectoryOverlays(
+                                model_opts, submodels_paths).compute_trajectory_overlays(
+                                    img_data, feature_type,
+                                    full_bbox_sequences, full_rel_bbox_seq, 
+                                    full_veh_speed, i)
                             img_features = cv2.resize(img_features, target_dim)
                             show_image(img_features) if debug else None
                         elif 'remove_ped' in crop_type:
@@ -888,7 +891,8 @@ class ActionPredict(object):
         aux_name = '_'.join(aux_name).strip('_')
         return aux_name
     
-    def get_context_data(self, model_opts, data, data_type, feature_type):
+    def get_context_data(self, model_opts, data, data_type, feature_type,
+                         submodels_paths: dict = None):
         print('\n#####################################')
         print('Generating {} {}'.format(feature_type, data_type))
         print('#####################################')
@@ -931,7 +935,8 @@ class ActionPredict(object):
         if 'scene_context' in feature_type and feature_type != "scene_context_non_static":
             return get_static_context_data(
                 self, model_opts, data, 
-                data_gen_params, feature_type
+                data_gen_params, feature_type,
+                submodels_paths=submodels_paths
             )
         if 'optical_flow' in feature_type:
             return self.get_optical_flow(data['image'],
@@ -947,7 +952,9 @@ class ActionPredict(object):
                                                      **data_gen_params)
 
     def get_data(self, data_type, data_raw, model_opts,
-                 combined_model=False):
+                 combined_model=False,
+                 submodels_paths: dict = None
+                ):
         """
         Generates data train/test/val data
         Args:
@@ -977,8 +984,8 @@ class ActionPredict(object):
 
         for d_type in model_opts['obs_input_type']:
             if 'local' in d_type or 'context' in d_type or 'bbox' in d_type:
-                features, feat_shape = self.get_context_data(model_opts, data, data_type, d_type)
-                test = 10
+                features, feat_shape = self.get_context_data(model_opts, data, data_type, d_type,
+                                                             submodels_paths=submodels_paths)
             elif 'segmentation' in d_type: # todo: verify if this gets called
                 features, feat_shape = self.get_context_data(model_opts, data, data_type, d_type)
             elif 'pose' in d_type:
@@ -1288,7 +1295,8 @@ class ActionPredict(object):
               free_memory=False,
               train_opts=None,
               hyperparams=None,
-              test_only=False):
+              test_only=False,
+              train_end_to_end=False):
         """
         Trains the models
         Args:
@@ -1311,12 +1319,21 @@ class ActionPredict(object):
                        'dataset': model_opts['dataset']}
         model_path, hg_model_path = get_path(**path_params, file_name='model.h5')
 
+        if train_end_to_end:
+            submodels_paths = self.train_trajectory_pred_tf_first(
+                dataset=model_opts["dataset_full"])
+        else:
+            submodels_paths = None
 
         # Read train data
-        data_train = self.get_data('train', data_train, {**model_opts, 'batch_size': batch_size}) 
+        data_train = self.get_data('train', data_train, 
+                                   {**model_opts, 'batch_size': batch_size},
+                                   submodels_paths=submodels_paths) 
 
         if data_val is not None:
-            data_val = self.get_data('val', data_val, {**model_opts, 'batch_size': batch_size})['data']
+            data_val = self.get_data('val', data_val, 
+                                     {**model_opts, 'batch_size': batch_size},
+                                     submodels_paths=submodels_paths)['data']
             if self._generator:
                 data_val = data_val[0]
 
@@ -1336,7 +1353,9 @@ class ActionPredict(object):
                     train_opts=train_opts,
                     hyperparams=hyperparams,
                     class_w=class_w,
-                    test_only=test_only)
+                    test_only=test_only,
+                    train_end_to_end=train_end_to_end,
+                    submodels_paths=submodels_paths)
               
             if free_memory: # to be tested
                 free_train_and_val_memory(data_train, data_val)
@@ -1503,6 +1522,24 @@ class ActionPredict(object):
         print(f"Saved model path: {model_path}") # required by train_ensemble.py
 
         return acc, auc, f1, precision, recall
+
+    def train_trajectory_pred_tf_first(self, dataset: str):
+        """ The trajectory prediction transformer needs to be trained first
+            so that it can later be used for predicting future pedestrian 
+            bounding boxes, which will then be used as overlays on context scene 
+            images in the VAM branch.
+        """
+
+        # Train trajectory prediction encoder-decoder transformer
+        traj_tf_path = run_and_capture_model_path(
+            ["python3", "train_test.py", "-c", "config_files/TrajectoryTransformer.yaml", 
+            "-d", dataset, "-s", "trajectory"])
+        
+        submodels_paths = {
+            "traj_tf_path": traj_tf_path
+        }
+        
+        return submodels_paths
 
     def get_model(self, data_params):
         """

@@ -148,11 +148,6 @@ class VanillaTransformerForForecast(TimeSeriesTransformerPreTrainedModel):
 
         self.transformer = TrajectoryTransformerModel(config_for_huggingface, config_for_timeseries_lib)
 
-        classifier_hidden_size = config_for_timeseries_lib.num_class # number of neurons in last Linear layer at the end of model
-        self.classifier = nn.Linear(
-            classifier_hidden_size, config_for_huggingface.num_labels) \
-            if config_for_huggingface.num_labels > 0 else nn.Identity()
-
         self.timeseries_config = config_for_timeseries_lib
 
         self.post_init() # Initialize weights and apply final processing
@@ -237,27 +232,24 @@ class TrajectoryTransformerModel(TimeSeriesTransformerPreTrainedModel):
         return outputs
 
 
-def load_pretrained_trajectory_transformer(dataset_name: str):
+def load_pretrained_trajectory_transformer(dataset_name: str,
+                                           submodels_paths=None):
     config_for_trajectory_predictor = get_config_for_timeseries_lib(
         encoder_input_size=5, seq_len=15, hyperparams={}, pred_len=60)
-    if dataset_name in ["pie", "combined"]:
-        checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
-        #checkpoint = "data/models/pie/TrajectoryTransformer/14Sep2024-17h38m26s_TE31" # pred_len = first 30
-        #checkpoint = "data/models/pie/TrajectoryTransformer/14Sep2024-12h32m12s_TE29" # pred_len = 50
-        #checkpoint = "data/models/pie/TrajectoryTransformer/14Sep2024-14h01m08s_TE30" # traj pred + box_center_speed
-        #checkpoint = "data/models/pie/TrajectoryTransformer/12Sep2024-20h21m01s_TE26" # normalized_abs_box only
-        #checkpoint = "data/models/pie/TrajectoryTransformer/12Sep2024-20h21m01s_TE26" # pose (10 keypoints)
-        #checkpoint = "data/models/pie/TrajectoryTransformer/11Sep2024-16h45m15s_TE25"  # traj pred + pose (10 keypoints)
-        #checkpoint = "data/models/pie/TrajectoryTransformer/11Sep2024-10h11m19s_TE24" # traj pred + pose
-        #checkpoint = "data/models/pie/TrajectoryTransformer/07Sep2024-13h38m14s_TE23" # traj pred + normalized_abs_box
-        #checkpoint = "data/models/pie/TrajectoryTransformer/05Jul2024-16h28m50s_TE3"
-    elif dataset_name == "jaad_all":
-        checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
-    elif dataset_name == "jaad_beh":
-        #checkpoint = "data/models/jaad/TrajectoryTransformer/20Dec2024-14h24m55s_BE26"
-        checkpoint = "data/models/jaad/TrajectoryTransformer/20Nov2024-10h50m14s_TE25"
-        # checkpoint = "data/models/jaad/TrajectoryTransformer/10Aug2024-11h55m10s_TE23"
-        # checkpoint = "data/models/pie/TrajectoryTransformer/05Jul2024-16h28m50s_TE3"
+    if submodels_paths:
+        checkpoint = submodels_paths["traj_tf_path"]
+    else:
+        if dataset_name in ["pie", "combined"]:
+            checkpoint = "data/models/pie/TrajectoryTransformer/09Jan2025-08h21m06s"
+            #checkpoint = "data/models/pie/TrajectoryTransformer/08Jan2025-12h01m11s"
+            #checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
+        elif dataset_name == "jaad_all":
+            checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
+        elif dataset_name == "jaad_beh":
+            #checkpoint = "data/models/jaad/TrajectoryTransformer/20Dec2024-14h24m55s_BE26"
+            checkpoint = "data/models/jaad/TrajectoryTransformer/20Nov2024-10h50m14s_TE25"
+            # checkpoint = "data/models/jaad/TrajectoryTransformer/10Aug2024-11h55m10s_TE23"
+            # checkpoint = "data/models/pie/TrajectoryTransformer/05Jul2024-16h28m50s_TE3"
 
     pretrained_model = VanillaTransformerForForecast.from_pretrained(
         checkpoint,

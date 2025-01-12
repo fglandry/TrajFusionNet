@@ -27,7 +27,7 @@ def override_create_optimizer(trainer_obj: Trainer,
         
         if disable_vam_branch:
             # disable learning in VAM module by setting learning rate to 0 during first epochs
-            if epoch_index <= 10:
+            if epoch_index <= 15:
                 params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
                                     (p.requires_grad and "van_output_embed" in n)]
             else:

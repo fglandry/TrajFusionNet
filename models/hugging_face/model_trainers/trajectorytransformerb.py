@@ -208,7 +208,8 @@ class EncoderTransformer(TimeSeriesTransformerPreTrainedModel):
     def __init__(self,
                  config_for_huggingface: TimeSeriesTransformerConfig,
                  config_for_timeseries_lib: dict,
-                 dataset_name: str = None
+                 dataset_name: str = None,
+                 submodels_paths: dict = None
         ):
         super().__init__(config_for_huggingface)
         self._dataset = dataset_name
@@ -216,7 +217,8 @@ class EncoderTransformer(TimeSeriesTransformerPreTrainedModel):
 
         self.tsl_transformer = VanillaTransformerTSLModel(config_for_timeseries_lib)
 
-        self.traj_TF = load_pretrained_trajectory_transformer(dataset_name)
+        self.traj_TF = load_pretrained_trajectory_transformer(dataset_name,
+                                                              submodels_paths=submodels_paths)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -269,34 +271,40 @@ class EncoderTransformer(TimeSeriesTransformerPreTrainedModel):
 
 
 def load_pretrained_encoder_transformer(dataset_name: str,
-                                        add_classification_head: bool = True):
-    config_for_trajectory_predictor = get_config_for_timeseries_lib(
+                                        add_classification_head: bool = True,
+                                        submodels_paths: dict = None):
+    config_for_encoder_tf = get_config_for_timeseries_lib(
             encoder_input_size=5, seq_len=75, hyperparams={})
-    if dataset_name in ["pie", "combined"]:
-        #checkpoint = "data/models/pie/TrajectoryTransformerb/20Nov2024-17h42m36s_NW1"
-        checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
-    elif dataset_name == "jaad_all":
-        checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-12h02m51s_TJ8"
-        #checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
-        #checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
-    elif dataset_name == "jaad_beh":
-        #checkpoint = "data/models/jaad/TrajectoryTransformerb/20Dec2024-14h54m11s_BE3"
-        checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-10h36m17s_BE2"
-        #checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-10h01m55s_BE1"
-        #checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
+    if submodels_paths:
+        checkpoint = submodels_paths["enc_tf_path"]
+    else:
+        if dataset_name in ["pie", "combined"]:
+            checkpoint = "data/models/pie/TrajectoryTransformerb/09Jan2025-09h20m47s"
+            #checkpoint = "data/models/pie/TrajectoryTransformerb/08Jan2025-12h53m15s"
+            #checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
+        elif dataset_name == "jaad_all":
+            checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-12h02m51s_TJ8"
+            #checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
+            #checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
+        elif dataset_name == "jaad_beh":
+            #checkpoint = "data/models/jaad/TrajectoryTransformerb/20Dec2024-14h54m11s_BE3"
+            checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-10h36m17s_BE2"
+            #checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-10h01m55s_BE1"
+            #checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
 
     if add_classification_head:
         pretrained_model = EncoderTransformerForClassification.from_pretrained(
             checkpoint,
-            config_for_timeseries_lib=config_for_trajectory_predictor,
+            config_for_timeseries_lib=config_for_encoder_tf,
             ignore_mismatched_sizes=True,
             dataset_name=dataset_name)
     else:
         pretrained_model = EncoderTransformer.from_pretrained(
             checkpoint,
-            config_for_timeseries_lib=config_for_trajectory_predictor,
+            config_for_timeseries_lib=config_for_encoder_tf,
             ignore_mismatched_sizes=True,
-            dataset_name=dataset_name)
+            dataset_name=dataset_name,
+            submodels_paths=submodels_paths)
     
     # Make all layers untrainable
     for child in pretrained_model.children():

@@ -7,9 +7,9 @@ model_opts:
     pytorch: True
     hugging_faces: True
     multi-gpu: False
-  process_input_features: 
+  process_input_features:
     enabled: True
-    indexes_to_stack: [0,1]
+    indexes_to_stack: [0, 1]
     static_features_indexes: []
     super_resolution: False
   vanilla_transformer:
@@ -31,7 +31,7 @@ model_opts:
       cell_type: gru
       backbone: vgg16
 exp_opts:
-  datasets: [pie]
+  datasets: [jaad_all]
   batch_size: [16]
   epochs: [60]
   lr: [5.0e-06]

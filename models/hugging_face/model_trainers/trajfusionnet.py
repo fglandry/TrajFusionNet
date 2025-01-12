@@ -1,6 +1,6 @@
-from typing import Optional, Tuple, Union
 import copy
-import math
+from typing import Optional, Tuple, Union
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -9,15 +9,15 @@ from transformers import VanModel, TrainingArguments, Trainer, TimesformerConfig
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-
 from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
 from models.hugging_face.model_trainers.trajectorytransformerb import load_pretrained_encoder_transformer
-from models.hugging_face.model_trainers.van import load_pretrained_van
+from models.hugging_face.model_trainers.van import load_pretrained_van, VAN
 from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, normalize_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
 from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
 from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.custom_layers_pytorch import SelfAttention
 from utils.data_load import DataGenerator
+from utils.action_predict_utils.run_in_subprocess import run_and_capture_model_path
 
 NET_INNER_DIM = 512
 NET_OUTER_DIM = 40
@@ -38,6 +38,8 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
               hyperparams: dict = None,
               class_w: list = None,
               test_only: bool = False,
+              train_end_to_end: bool = False,
+              submodels_paths: dict = None,
               *args, **kwargs):
         """ Train model
         Args:
@@ -57,10 +59,17 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         config_for_huggingface = TimeSeriesTransformerConfig()
         self.class_w = class_w
 
+        # If training end-to-end, start by training submodels
+        if train_end_to_end:
+            submodels_paths = train_submodels(
+                dataset=kwargs["model_opts"]["dataset_full"],
+                submodels_paths=submodels_paths)
+
         model = TrajFusionNetForClassification(config_for_huggingface, 
                                                class_w=class_w,
                                                dataset_statistics=dataset_statistics,
-                                               dataset_name=kwargs["model_opts"]["dataset_full"])
+                                               dataset_name=kwargs["model_opts"]["dataset_full"],
+                                               submodels_paths=submodels_paths)
         summary(model)
 
         # Get datasets
@@ -87,20 +96,19 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             max_steps=-1
         )
         
-
-        # Train model
-        if not test_only:
+        if test_only:
+            optimizer, lr_scheduler = get_optimizer(self, model, args, 
+                    train_dataset, val_dataset, data_train, train_opts)
+            trainer = self._get_trainer(model, args, train_dataset, 
+                                        val_dataset, optimizer, lr_scheduler)
+        else:
+            # Train model
             print("Starting training of model TrajFusionNet ===========================")
             trainer = self.train_with_initial_vam_branch_disabling(
                 model, epochs, args, train_dataset,
                 val_dataset, data_train, train_opts
             )
-        else:
-            optimizer, lr_scheduler = get_optimizer(self, model, args, 
-                    train_dataset, val_dataset, data_train, train_opts)
-            trainer = self._get_trainer(model, args, train_dataset, 
-                                        val_dataset, optimizer, lr_scheduler)
-        
+     
         return {
             "trainer": trainer,
             "val_transform": val_transforms_dicts
@@ -108,84 +116,52 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
     
     def train_with_initial_vam_branch_disabling(self,
             model, epochs, args, train_dataset, 
-            val_dataset, data_train, train_opts,
-            disable_vam_branch_initially=True):
+            val_dataset, data_train, train_opts):
         
-        initial_weights = copy.deepcopy(model.state_dict())
-
-        # Run first part of training procedure
         best_metric = 0
         best_trainer = None
-        best_scenario_in_second_training = False
-
-        optimizer, lr_scheduler = get_optimizer(self, model, args, 
-            train_dataset, val_dataset, data_train, train_opts,
-            disable_vam_branch=False)
-        trainer = self._get_trainer(model, args, train_dataset, 
-                                     val_dataset, optimizer, lr_scheduler)
         
-        trainer.train()
-        best_trainer = trainer
-        best_metric = trainer.state.best_metric if trainer.state.best_metric else 0
-        print(f"Best AUC metric in first part of training: {best_trainer.state.best_metric}")
-        
-        
-        # Run second part of training procedure
-        if disable_vam_branch_initially:
-            # Reset weights and keep training model with learning rate of VAM
-            # branch set to 0 + weights of embed layer set to 0, during first 10 epochs
-            model.load_state_dict(initial_weights)
-            with torch.no_grad(): 
-                model.van_output_embed.weight.zero_()
-                model.van_output_embed.bias.zero_()
-            # args.output_dir = model_path[:-1] + "-part2"
+        # Run first part of training procedure with the VAM branch disabled.
+        # In order to do this, the weights in the VAM projection layer ('van_output_embed')
+        # as well as the associated learning rate are set to zero
+        with torch.no_grad(): 
+            model.van_output_embed.weight.zero_()
+            model.van_output_embed.bias.zero_()
 
-            for i in range(epochs):
-                
-                # Get custom optimizer to disable learning in the projection layer of
-                # the VAM branch for the first 5 epochs
-                optimizer, lr_scheduler = get_optimizer(self, model, args, 
-                    train_dataset, val_dataset, data_train, train_opts,
-                    disable_vam_branch=True, epoch_index=i+1)
-                
-                trainer = self._get_trainer(model, args, train_dataset, 
-                                             val_dataset, optimizer, lr_scheduler)
-                trainer.args.num_train_epochs = 1
-                
-                trainer.train()
+        for i in range(epochs):
+            
+            # Get custom optimizer to set learning rate to zero in the VAM projection layer
+            optimizer, lr_scheduler = get_optimizer(self, model, args, 
+                train_dataset, val_dataset, data_train, train_opts,
+                disable_vam_branch=True, epoch_index=i+1)
+            
+            trainer = self._get_trainer(model, args, train_dataset, 
+                                        val_dataset, optimizer, lr_scheduler)
+            trainer.args.num_train_epochs = 1
+            
+            trainer.train()
 
-                # metric = best_trainer.state.best_metric if best_trainer.state.best_metric is not None else 0.0
-                if i == 10:
-                    print("Reached transition epoch")
-                if trainer.state.best_metric > best_metric and i != 10: # do not take best checkpoint right when the VAM branch is enabled again
-                    best_trainer = trainer
-                    best_metric = trainer.state.best_metric
-                    best_scenario_in_second_training = True
-
-                print(f"Best AUC metric in second part of training: {trainer.state.best_metric}")
-        
-            if not best_scenario_in_second_training:
-                # The huggingface trainer object forgets the first training after
-                # the second training is launched. If better results are obtained
-                # in the first training, re-compute that training so that results get
-                # stored in the trainer.
-                # TODO: find a way to avoid having to do this
-
-                model.load_state_dict(initial_weights)
-
-                optimizer, lr_scheduler = get_optimizer(self, model, args, 
-                    train_dataset, val_dataset, data_train, train_opts,
-                    disable_vam_branch=False)
-                trainer = self._get_trainer(model, args, train_dataset, 
-                                            val_dataset, optimizer, lr_scheduler)
-                trainer.args.num_train_epochs = epochs
-                trainer.train()
+            if trainer.state.best_metric > best_metric:
                 best_trainer = trainer
                 best_metric = trainer.state.best_metric
 
-        print(f"Best AUC metric: {best_trainer.state.best_metric}")
-        return best_trainer
+        # Run second part of training procedure with the VAM branch re-enabled       
+        optimizer, lr_scheduler = get_optimizer(self, model, args, 
+            train_dataset, val_dataset, data_train, train_opts,
+            disable_vam_branch=False) # learning rate of the VAM projection layer is
+                                      # reset to the global learning rate
 
+        trainer = self._get_trainer(model, args, train_dataset, 
+                                    val_dataset, optimizer, lr_scheduler)
+        trainer.args.num_train_epochs = epochs
+
+        trainer.train()
+
+        if trainer.state.best_metric > best_metric:
+            best_trainer = trainer
+            best_metric = trainer.state.best_metric if trainer.state.best_metric else 0
+
+        return best_trainer
 
     def _get_trainer(self, model, args, train_dataset, 
                      val_dataset, optimizer, lr_scheduler):
@@ -231,7 +207,8 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
                  config_for_huggingface: TimeSeriesTransformerConfig,
                  class_w: list = None,
                  dataset_statistics: dict = None,
-                 dataset_name: str = ""
+                 dataset_name: str = "",
+                 submodels_paths: dict = None
         ):
         super().__init__(config_for_huggingface)
         self._device = get_device()
@@ -256,16 +233,19 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
         self.van1 = load_pretrained_van( # predicted ped overlays
             dataset_name,
             is_predicted_overlays=True,
-            add_classification_head=False)
+            add_classification_head=False,
+            submodels_paths=submodels_paths)
 
         self.van2 = load_pretrained_van( # observed ped overlays
             dataset_name,
             is_predicted_overlays=False,
-            add_classification_head=False)
+            add_classification_head=False,
+            submodels_paths=submodels_paths)
 
         # Get pretrained encoder transformer -----------------------------------------
         self.traj_class_TF = load_pretrained_encoder_transformer(dataset_name,
-                                                                 add_classification_head=False)
+                                                                 add_classification_head=False,
+                                                                 submodels_paths=submodels_paths)
 
         # Classifier layers
         if self.combine_branches_with_attention:
@@ -387,6 +367,35 @@ class TrajFusionNetForClassification(TimeSeriesTransformerPreTrainedModel):
         self.return_dict = return_dict
         return return_dict
 
+def train_submodels(dataset: str,
+                    submodels_paths: dict):
+
+    # SAM module ===============================================================
+    
+    # Train encoder transformer
+    enc_tf_path = run_and_capture_model_path(
+        ["python3", "train_test.py", "-c", "config_files/TrajectoryTransformerb.yaml", 
+         "-d", dataset])
+
+    # VAM module ===============================================================
+    
+    # Train VAN with image context at time t and predicted trajectory overlays
+    van_path = run_and_capture_model_path(
+        ["python3", "train_test.py", "-c", "config_files/VAN.yaml", 
+         "-d", dataset])
+    
+    # Train VAN with image context at time t-15 and observed trajectory overlays
+    van_prev_path = run_and_capture_model_path(
+        ["python3", "train_test.py", "-c", "config_files/VAN_previous.yaml", 
+         "-d", dataset])
+    
+    submodels_paths.update({
+        "enc_tf_path": enc_tf_path,
+        "van_path": van_path,
+        "van_prev_path": van_prev_path
+    })
+
+    return submodels_paths
 
 def load_pretrained_trajfusionnet(dataset_name: str):
     if dataset_name in ["pie", "combined"]:
