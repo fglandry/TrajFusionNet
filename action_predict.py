@@ -1,8 +1,9 @@
-import math
-import time
-import yaml
 import copy
 import cv2
+import math
+import time
+from typing import Any
+import yaml
 
 #import tensorflow as tf
 #import tensorflow_addons as tfa
@@ -55,7 +56,6 @@ class ActionPredict(object):
         del kwargs["model_opts"] # to avoid downstream errors when training models
         frameworks = self.model_configs["frameworks"] if "frameworks" in self.model_configs else {}
         self.is_tensorflow = not frameworks.get("pytorch") if frameworks else True
-        #self.is_tensorflow = False # to remove
         if self.is_tensorflow:
             # Create a strategy for multi-gpu data parallelism (tensorflow models)
             gpus_found = tf.config.list_physical_devices('GPU')
@@ -1283,20 +1283,20 @@ class ActionPredict(object):
         model_class = getattr(model_module, model_str)
         return model_class()
     
-    def train(self, data_train,
-              data_val=None,
-              batch_size=32,
-              epochs=60,
-              lr=0.000005,
-              optimizer='adam',
-              learning_scheduler=None,
-              model_opts=None,
-              is_huggingface=False,
-              free_memory=False,
-              train_opts=None,
-              hyperparams=None,
-              test_only=False,
-              train_end_to_end=False):
+    def train(self, data_train: dict,
+              data_val: dict = None,
+              batch_size: int = 32,
+              epochs: int = 60,
+              lr: int = 0.000005,
+              optimizer: str = 'adam',
+              learning_scheduler: Any = None,
+              model_opts: dict = None,
+              is_huggingface: bool = False,
+              free_memory: bool = False,
+              train_opts: dict = None,
+              hyperparams: dict = None,
+              test_only: bool = False,
+              train_end_to_end: bool = False):
         """
         Trains the models
         Args:
@@ -1308,6 +1308,13 @@ class ActionPredict(object):
             optimizer: Optimizer for training
             learning_scheduler: Whether to use learning schedulers
             model_opts: Model options
+            is_huggingface: when set to True, specified that it is a huggingface model
+            free_memory: free memory by deleting some variables along the way
+            train_opts: training options
+            hyperparams: set of hyperparameters to use, set to None to use default values
+            test_only: if True, only inference will be performed (no training)
+            train_end_to_end [bool]: if True, all modules in the network will be trained (see modular
+                                     training section in the paper)
         Returns:
             The path to the root folder of models
         """
@@ -1338,7 +1345,6 @@ class ActionPredict(object):
                 data_val = data_val[0]
 
         # Use custom training functions for some models
-        # Todo: use design pattern to abstract training functions no matter what framework we're using (i.e. Pytorch or Tensorflow)
         if is_huggingface:
             dataset_statistics = get_dataset_statistics(data_train, model_opts)
             model = self.get_huggingface_model(model_opts)
