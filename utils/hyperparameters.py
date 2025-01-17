@@ -2,28 +2,21 @@ import copy
 import itertools
 
 HYPERPARAMS = {
-    "multibranchgraphtfv3": {
-        "context_tf": {
-            "n_heads": [2, 4, 6],
-            "e_layers": [2, 3],
-            "d_ff": [512, 1024]
-        }
-    },
     "trajectorytransformerb": {
         "VanillaTransformerForForecastClassification": {
             "n_heads": [12],
-            "e_layers": [6], # [2, 4, 6, 8],
-            "d_ff": [1024], # [1024], # [512, 1024],
-            "d_model": [128], # [128] # [128, 256],
-            "lr": [5.0e-06], # [5.0e-04, 5.0e-05, 5.0e-06, 5.0e-07],
-            "batch_size": [16], # [64, 32, 16, 8],
-            "epochs": [90], # [30, 60, 90]
+            "e_layers": [2, 4, 6, 8],
+            "d_ff": [512, 1024],
+            "d_model": [128, 256],
+            "lr": [5.0e-04, 5.0e-05, 5.0e-06, 5.0e-07],
+            "batch_size": [64, 32, 16, 8],
+            "epochs": [30, 60, 90]
         }
     },
     "trajectorytransformer": {
         "VanillaTransformerForForecast": {
-            "lr": [5.0e-04], # [5.0e-05, 5.0e-06, 5.0e-07],
-            "batch_size": [32, 16], # [32, 16, 8]
+            "lr": [5.0e-05, 5.0e-06, 5.0e-07],
+            "batch_size": [32, 16, 8]
             # "n_heads": [4, 8, 12],
             # "d_ff": [512, 1024],
             # "e_layers": [4, 8, 12],

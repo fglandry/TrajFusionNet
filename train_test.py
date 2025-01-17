@@ -1,20 +1,6 @@
-# Set environment variables ========================================
-
-# Huggingface-related environment variables
-import os, sys
-TESTING = os.environ.get("PAB_TESTING") == "True"
-if TESTING:
-    sys.path.insert(0, "/home/francois/MASTER/libs")
-    sys.path.insert(0, "/home/francois/MASTER/PedestrianActionBenchmark/libs/simple_hrnet")
-HUGGINGFACE_CACHE_DIRECTORY = os.environ.get("HUGGINGFACE_CACHE_DIRECTORY") or "/home/francois/huggingface"
-os.environ['TRANSFORMERS_CACHE'] = HUGGINGFACE_CACHE_DIRECTORY
-os.environ['HF_DATASETS_CACHE'] = HUGGINGFACE_CACHE_DIRECTORY
-os.environ['TRANSFORMERS_OFFLINE'] = "0"
-os.environ['HF_DATASETS_OFFLINE'] = "0"
-
-# Imports
 import copy
 import getopt
+import os
 import random
 import sys
 import yaml
@@ -24,15 +10,15 @@ from transformers import set_seed as huggingface_set_seed
 import torch
 
 from action_predict import ActionPredict
-from datasets_data.jaad_data import JAAD
-from datasets_data.pie_data import PIE
 from models.models import *
 from models.multi_branch_models.combined_models import *
+from utils.action_predict_utils.sequences import get_trajectory_sequences 
 from utils.global_variables import get_time_writing_to_disk
 from utils.hyperparameters import HyperparamsOrchestrator
 from utils.utils import IndentedDumper
 
 SEED = 0
+
 
 def write_to_yaml(yaml_path=None, data=None):
     """
@@ -49,7 +35,7 @@ def write_to_yaml(yaml_path=None, data=None):
     with open(yaml_path, 'w') as yamlfile:
         yaml.dump(data, yamlfile)
 
-def action_prediction(model_name):
+def action_prediction(model_name: str):
     for cls in ActionPredict.__subclasses__():
         if cls.__name__ == model_name:
             return cls
@@ -58,20 +44,30 @@ def action_prediction(model_name):
             return cls
     raise Exception('Model {} is not valid!'.format(model_name))
 
-def run(config_file=None,
-        dataset_override=None,
-        seq_type_override=None,  
-        test_only=False,
-        train_end_to_end=False,
-        free_memory=True, 
-        compute_time_writing_to_disk=False,
-        tune_hyperparameters=False):
+def run(config_file: str = None,
+        dataset_override: str = None,
+        seq_type_override: str = None,  
+        test_only: bool = False,
+        train_end_to_end: bool = False,
+        free_memory: bool = True, 
+        compute_time_writing_to_disk: bool = False,
+        tune_hyperparameters: bool = False
+    ):
     """
     Run train and test on the dataset with parameters specified in configuration file.
     
     Args:
-        config_file: path to configuration file in yaml format
-        dataset: dataset to train and test the model on (pie, jaad_beh or jaad_all)
+        config_file [str]: path to configuration file in yaml format
+        dataset_override [str]: if specified, overrides the dataset specified in the config file
+                                (pie, jaad_all, or jaad_beh)
+        seq_type_override [str]: if specified, overrides the seq_type specified in the config file
+                                 (trajectory or crossing)
+        test_only [bool]: if True, only inference will be performed (no training)
+        train_end_to_end [bool]: if True, all modules in the network will be trained (see modular
+                                 training section in the paper)
+        free_memory [bool]: free memory by deleting some variables along the way
+        compute_time_writing_to_disk [bool]: compute time writing to disk
+        tune_hyperparameters [bool]: fine-tune hyperparameters
     """
     if compute_time_writing_to_disk:
         global TIME_WRITING_TO_DISK
@@ -134,8 +130,8 @@ def run(config_file=None,
         beh_seq_train, beh_seq_val, beh_seq_test, beh_seq_test_cross_dataset = \
             get_trajectory_sequences(configs, free_memory)
         
-        model = "trajectorytransformerb"
-        submodel = "VanillaTransformerForForecastClassification"
+        model = ""
+        submodel = ""
         hyperparams_orchestrator = HyperparamsOrchestrator(tune_hyperparameters, model, submodel)
         for i in range(hyperparams_orchestrator.nb_cases):
             hyperparams = hyperparams_orchestrator.get_next_case()
@@ -143,21 +139,22 @@ def run(config_file=None,
                 print(f"Training model with hyperparams set {i}: {str(hyperparams[model][submodel])}")
             saved_files_path = \
                 train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
-                             beh_seq_test_cross_dataset, hyperparams,
-                             test_only=test_only,
-                             train_end_to_end=train_end_to_end)
+                                 beh_seq_test_cross_dataset, hyperparams,
+                                 test_only=test_only,
+                                 train_end_to_end=train_end_to_end)
         if dataset_override:
             break
     return saved_files_path # return path for last trained model
 
         
-def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test, 
-                     beh_seq_test_cross_dataset, hyperparams,
-                     free_memory=True, 
-                     compute_time_writing_to_disk=False,
-                     enable_cross_dataset_test=False,
-                     test_only=False,
-                     train_end_to_end=False):
+def train_test_model(configs: dict, beh_seq_train: dict, 
+                     beh_seq_val: dict, beh_seq_test: dict, 
+                     beh_seq_test_cross_dataset: dict, hyperparams: dict,
+                     free_memory: bool = True, 
+                     compute_time_writing_to_disk: bool = False,
+                     enable_cross_dataset_test: bool = False,
+                     test_only: bool = False,
+                     train_end_to_end: bool = False):
     
     is_huggingface = configs['model_opts'].get("frameworks") and configs['model_opts']["frameworks"]["hugging_faces"]
 
@@ -243,74 +240,10 @@ def train_test_model(configs, beh_seq_train, beh_seq_val, beh_seq_test,
     data = configs
     write_to_yaml(yaml_path=os.path.join(saved_files_path, 'configs.yaml'), data=data)
 
-    #print('Model saved to {}'.format(saved_files_path))
-
     if compute_time_writing_to_disk:
         print(f"Total time writing to disk is: {get_time_writing_to_disk()}")
 
     return saved_files_path
-
-
-def get_trajectory_sequences(configs, free_memory=False,
-                             compute_cross_dataset_test=True):
-    imdb, beh_seq_test_cross_dataset = None, None
-    if configs['model_opts']['dataset'] == 'pie':
-        imdb = PIE(data_path=os.environ.copy()['PIE_PATH'])
-        if compute_cross_dataset_test:
-            imdb_cross_dataset = JAAD(data_path=os.environ.copy()['JAAD_PATH'])
-    elif configs['model_opts']['dataset'] == 'jaad':
-        imdb = JAAD(data_path=os.environ.copy()['JAAD_PATH'])
-        if compute_cross_dataset_test:
-            imdb_cross_dataset = PIE(data_path=os.environ.copy()['PIE_PATH'])
-    elif configs['model_opts']['dataset'] == 'combined':
-        imdb_jaad = JAAD(data_path=os.environ.copy()['JAAD_PATH'])
-        imdb_pie = PIE(data_path=os.environ.copy()['PIE_PATH'])
-
-    if imdb is not None:
-        # get sequences (individual datasets, i.e. jaad or pie)
-        beh_seq_train = imdb.generate_data_trajectory_sequence('train', **configs['data_opts'])
-        beh_seq_val = imdb.generate_data_trajectory_sequence('val', **configs['data_opts'])
-        beh_seq_test = imdb.generate_data_trajectory_sequence('test', **configs['data_opts'])
-        if compute_cross_dataset_test:
-            data_opts_copy = copy.deepcopy(configs['data_opts'])
-            beh_seq_test_cross_dataset = imdb_cross_dataset.generate_data_trajectory_sequence(
-                'test', **data_opts_copy)
-    elif imdb_jaad is not None:
-        # get sequences for combined jaad + pie dataset
-        beh_seq_train_jaad = imdb_jaad.generate_data_trajectory_sequence('train', **configs['data_opts'])
-        beh_seq_val_jaad = imdb_jaad.generate_data_trajectory_sequence('val', **configs['data_opts'])
-        beh_seq_test_jaad = imdb_jaad.generate_data_trajectory_sequence('test', **configs['data_opts'])
-        beh_seq_train_pie = imdb_pie.generate_data_trajectory_sequence('train', **configs['data_opts'])
-        beh_seq_val_pie = imdb_pie.generate_data_trajectory_sequence('val', **configs['data_opts'])
-        beh_seq_test_pie = imdb_pie.generate_data_trajectory_sequence('test', **configs['data_opts'])
-        
-        beh_seq_train = combine_beh_seq(beh_seq_train_jaad, beh_seq_train_pie)
-        beh_seq_val = combine_beh_seq(beh_seq_val_jaad, beh_seq_val_pie)
-        beh_seq_test = combine_beh_seq(beh_seq_test_jaad, beh_seq_test_pie)
-        if compute_cross_dataset_test:
-            beh_seq_test_cross_dataset = [beh_seq_test_jaad, beh_seq_test_pie]
-
-
-    if free_memory:
-        # imdb dataset reference is not needed anymore
-        del imdb
-
-    return beh_seq_train, beh_seq_val, beh_seq_test, beh_seq_test_cross_dataset
-
-def combine_beh_seq(beh_seq_jaad, beh_seq_pie):
-    beh_seq = {}
-    jaad_keys = set(beh_seq_jaad.keys())
-    pie_keys = set(beh_seq_pie.keys())
-    for k in jaad_keys.intersection(pie_keys):
-        if k == "image_dimension":
-            beh_seq[k] = beh_seq_jaad[k]
-        else:
-            beh_seq[k] = beh_seq_jaad[k] + beh_seq_pie[k]
-
-    # Add speed # todo revisit
-    beh_seq['obd_speed'] = beh_seq_jaad['vehicle_act'] + beh_seq_pie['obd_speed']
-
-    return beh_seq
 
 def usage():
     """
@@ -366,7 +299,6 @@ if __name__ == '__main__':
             test_only = True
         elif o in ["--train_end_to_end"]:
             train_end_to_end = True
-
 
     # if neither the config file or model name are provided
     if not config_file:
