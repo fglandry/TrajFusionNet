@@ -13,24 +13,7 @@ model_opts:
     enabled: True
     indexes_to_stack: [2, 3]
     static_features_indexes: []
-  vanilla_transformer:
-    normalize_boxes: True
-    pose_configs:
-      keep_most_stable_keypoints: True
-      add_distances_between_keypoints: False
-      add_angles_between_limb_and_axis: False
-      add_joints_angles: False
-      add_joints_angles_diff: False
-    input_embedding:
-      active: False
-    positional_encoding:
-      active: False
-    net_opts:
-      num_hidden_units: 128
-      global_pooling: avg
-      regularizer_val: 0.0001
-      cell_type: gru
-      backbone: vgg16
+  normalize_boxes: True
 exp_opts:
   datasets: [jaad_beh]
   batch_size: [16]

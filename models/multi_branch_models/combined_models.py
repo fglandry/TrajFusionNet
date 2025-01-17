@@ -91,7 +91,7 @@ class BaseTransformerModel(ActionPredict):
 
         # Get model opts specific to each sub-model
         self.combined_model_ops = copy.deepcopy(model_opts)
-        self.combined_model_ops.update(model_opts["vanilla_transformer"])
+        # self.combined_model_ops.update(model_opts["vanilla_transformer"])
 
         # Add model-specific parameters
         self.obs_length = self.combined_model_ops['obs_length']
