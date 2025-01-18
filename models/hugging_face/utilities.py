@@ -221,7 +221,6 @@ class CustomPreTrainedModel(PreTrainedModel):
             nn.init.trunc_normal_(module.position_embeddings, std=self.config.initializer_range)
             module.patch_embeddings.apply(self._init_weights)
 
-
 def get_device():
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
