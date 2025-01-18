@@ -1,4 +1,3 @@
-
 from datasets import load_metric
 import numpy as np
 import torch
@@ -11,9 +10,9 @@ from transformers import PreTrainedModel, TimeSeriesTransformerConfig
 from transformers.trainer_utils import EvalPrediction
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 from transformers.models.timesformer.modeling_timesformer import TimesformerEmbeddings
-from models.hugging_face.utils.focal_loss import FocalLoss, FocalLoss2
 
 METRICS_REL_DIR = "models/hugging_face/metrics"
+
 
 def get_class_labels_info():
     class_labels = ["no_cross", "cross"]
@@ -21,7 +20,7 @@ def get_class_labels_info():
     id2label = {i: label for label, i in label2id.items()}
     return label2id, id2label
 
-def compute_huggingface_metrics(eval_pred):
+def compute_huggingface_metrics(eval_pred: EvalPrediction):
     metric_acc = load_metric(f"{METRICS_REL_DIR}/accuracy.py")
     metric_auc = load_metric(f"{METRICS_REL_DIR}/roc_auc.py")
     metric_f1 = load_metric(f"{METRICS_REL_DIR}/f1.py")
@@ -29,7 +28,8 @@ def compute_huggingface_metrics(eval_pred):
     metric_recall = load_metric(f"{METRICS_REL_DIR}/recall.py")
     eval_pred_tte = None
 
-    if eval_pred.predictions.shape[-1] > 2: # review: multi-task learning
+    if eval_pred.predictions.shape[-1] > 2:
+
         # To get crossing metrics ...
         eval_pred_crossing = eval_pred.predictions[...,0:2]
         references = eval_pred.label_ids[0]
@@ -37,13 +37,13 @@ def compute_huggingface_metrics(eval_pred):
         if eval_pred.predictions.shape[-1] == 3:
             # To get tte metrics ...
             _eval_pred_tte = eval_pred.predictions[...,2]
-            # predictions_tte = np.argmax(eval_pred_tte, axis=1)
             _references_tte = eval_pred.label_ids[1]
 
             # Remove non-crossing occurences
             eval_pred_tte = np.array([ele*31.0+30.0 for (idx, ele) in enumerate(list(_eval_pred_tte)) \
                             if _references_tte[idx]!=1])
             references_tte = np.array([ele*31.0+30.0 for ele in list(_references_tte) if ele!=1])
+        
         elif eval_pred.predictions.shape[-1] == 6:
             # To get tte_pos metrics ...
             eval_pred_tte = eval_pred.predictions[..., 2:]
@@ -59,7 +59,6 @@ def compute_huggingface_metrics(eval_pred):
 
     # To get crossing metrics
     predictions = np.argmax(eval_pred_crossing, axis=1)
-    # prediction_scores = np.argmax(eval_pred_crossing, axis=1) # verify if that makes sense
 
     try:
         acc = metric_acc.compute(predictions=predictions, references=references)["accuracy"]
@@ -81,6 +80,7 @@ def compute_huggingface_metrics(eval_pred):
         recall = metric_recall.compute(predictions=predictions, references=references)["recall"]
     except ValueError:
         recall = 0
+        
     if type(eval_pred_tte) is np.ndarray:
         try:
             mse = metric_mse.compute(predictions=eval_pred_tte, references=references_tte)["mse"]
@@ -152,6 +152,7 @@ def compute_loss(
     loss = None
     if not config:
         config = dotdict({"problem_type": None})
+
     if labels is not None:
         if problem_type is None:
             if num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
@@ -218,16 +219,9 @@ class CustomPreTrainedModel(PreTrainedModel):
             nn.init.trunc_normal_(module.position_embeddings, std=self.config.initializer_range)
             module.patch_embeddings.apply(self._init_weights)
 
-    """
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, TimesformerEncoder):
-            module.gradient_checkpointing = value
-    """
-
 def get_device():
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
     else:
         device = torch.device('cpu')
     return device
-

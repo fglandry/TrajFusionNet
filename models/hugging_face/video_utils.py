@@ -44,7 +44,7 @@ class HuggingFaceVideoClassificationModel():
         labels = torch.squeeze(labels) # added
         return {"pixel_values": pixel_values, "labels": labels}
 
-
+"""
 class TorchVideoDataset(Dataset):
     def __init__(self, data, targets, data_type, generator=False, transform=None):
         if not generator:
@@ -97,7 +97,9 @@ def get_video_item(index, data, data_type, generator, debug=False):
         item = item.permute(3, 0, 1, 2)
     item = item.float() # item.shape=[3,16,224,224]
     return item
+"""
 
+"""
 def test_video_based_model(
         test_data,
         training_result,
@@ -140,7 +142,7 @@ def test_video_based_model(
     recall = test_results["eval_recall"]
 
     return acc, auc, f1, precision, recall
-
+"""
 
 def get_video_transforms(model, image_processor, config):
     mean = image_processor.image_mean
