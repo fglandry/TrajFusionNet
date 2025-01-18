@@ -176,7 +176,7 @@ def convert_img_to_format_used_by_transform(item: np.ndarray, debug: bool):
     return x
 
 def get_image_transforms(image_processor: Any, 
-                         num_channels: int =3, 
+                         num_channels: int = 3, 
                          dataset_statistics: dict = None, 
                          modality=None):
 
