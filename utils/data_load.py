@@ -28,7 +28,6 @@ def get_generator(
         model_opts [dict]: model options
         data_type [str]: data split (train, val, test)
         combined_model [bool]: if the model combines special data features
-
     """
 
     pytorch, tensorflow = False, True
@@ -154,7 +153,7 @@ class DataGenerator(Sequence):
         if self.shuffle:
             np.random.shuffle(self.indices)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int):
         indices = self.indices[index*self.batch_size: (index+1)*self.batch_size]
 
         X = self._generate_X(indices)
@@ -167,7 +166,7 @@ class DataGenerator(Sequence):
             else:
                 return X
 
-    def _get_img_features(self, cached_path):
+    def _get_img_features(self, cached_path: str):
         img_features = open_pickle_file(cached_path)
         if self.process:
             if self.global_pooling == 'max':
@@ -182,7 +181,7 @@ class DataGenerator(Sequence):
                 img_features = img_features.ravel()        
         return img_features
 
-    def _generate_X(self, indices):
+    def _generate_X(self, indices: np.ndarray):
         X = []
         for input_type_idx, input_type in enumerate(self.input_type_list):
             features_batch = np.empty((self.batch_size, *self.data_sizes[input_type_idx]))
@@ -209,7 +208,7 @@ class DataGenerator(Sequence):
             X.append(features_batch)
         return X
 
-    def _generate_y(self, indices):
+    def _generate_y(self, indices: np.ndarray):
         return np.array(self.labels[indices])
 
 

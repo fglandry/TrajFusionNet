@@ -64,7 +64,8 @@ def get_dataset_statistics(data_train: dict, model_opts: dict,
     return dataset_statistics
 
 
-def _calculate_stats_for_img_like_data(data_type, means, std_devs, item, t_idx):
+def _calculate_stats_for_img_like_data(data_type: str, means: dict, 
+                                       std_devs: dict, item: tuple, t_idx: int):
     if data_type not in means:
         means[data_type] = []
         std_devs[data_type] = []

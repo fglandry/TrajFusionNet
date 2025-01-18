@@ -776,7 +776,7 @@ class ActionPredict(object):
     
     def compute_veh_speed(self, d, k, dataset):
         """ Compute vehicle speed. After swapping encodings, new encoded
-            values should be:
+            values will be:
                 0: stopped
                 1: decelerating
                 2: moving slow
@@ -1139,13 +1139,14 @@ class ActionPredict(object):
 
         print('Wrote configs to {}'.format(config_path))
 
-    def class_weights(self, apply_weights, sample_count,
-                      huggingface=False):
+    def class_weights(self, apply_weights: bool, sample_count: dict,
+                      huggingface: bool = False):
         """
         Computes class weights for imbalanced data used during training
         Args:
-            apply_weights: Whether to apply weights
-            sample_count: Positive and negative sample counts
+            apply_weights [bool]: Whether to apply weights
+            sample_count [dict]: Positive and negative sample counts
+            huggingface [bool]: if the model is from huggingface
         Returns:
             A dictionary of class weights or None if no weights to be calculated
         """
@@ -1153,9 +1154,6 @@ class ActionPredict(object):
         total = sample_count['neg_count'] + sample_count['pos_count']
         if not apply_weights or not total:
             return None
-        # formula from sklearn
-        #neg_weight = (1 / sample_count['neg_count']) * (total) / 2.0
-        #pos_weight = (1 / sample_count['pos_count']) * (total) / 2.0
         
         # use simple ratio
         neg_weight = sample_count['pos_count']/total
@@ -1221,7 +1219,7 @@ class ActionPredict(object):
         elif optimizer.lower() == 'rmsprop':
             return RMSprop
         
-    def get_huggingface_model(self, model_opts):
+    def get_huggingface_model(self, model_opts: dict):
         model_str = model_opts["model"]
         model_trainers_module = getattr(getattr(
             __import__(f"models.hugging_face.model_trainers.{model_str.lower()}"),
@@ -1312,7 +1310,7 @@ class ActionPredict(object):
                     train_end_to_end=train_end_to_end,
                     submodels_paths=submodels_paths)
               
-            if free_memory: # to be tested
+            if free_memory:
                 free_train_and_val_memory(data_train, data_val)
 
             history_path, saved_files_path = get_path(**path_params, file_name='history.pkl')
@@ -1386,8 +1384,7 @@ class ActionPredict(object):
 
 
     # Test Functions
-    def test(self, data_test, model_path='', 
-             debug=False, 
+    def test(self, data_test: dict, model_path: dict = '', 
              is_huggingface=False, 
              training_result=None,
              model_opts=None,
@@ -1395,10 +1392,13 @@ class ActionPredict(object):
         """
         Evaluates a given model
         Args:
-            data_test: Test data
-            model_path: Path to folder containing the model and options
-            save_results: Save output of the model for visualization and analysis
-            model_opts: options related to the model, only needed when it is a huggingface model
+            data_test [dict]: Test data
+            model_path [dict]: dictionary that contains the path to the folder containing the model and options,
+                               but also the trainer object (if model is from huggingface) and validation data
+                               transforms
+            is_huggingface [bool]: specified if it is a huggingface model
+            training_result [dict]: dictionary containing training results
+            model_opts [dict]: options related to the model, only needed when it is a huggingface model
             test_only [bool]: is set to True, model will not be trained, only tested
         Returns:
             Evaluation metrics
@@ -1423,20 +1423,14 @@ class ActionPredict(object):
         }
         with custom_object_scope(custom_objects):
             test_model = load_model(os.path.join(model_path, 'model.h5'))
-        """
-        if debug:
-            model_dict = str(test_model.__dict__)
-            with open(f"{model_path}/model.txt", 'w') as f: 
-                json.dump(model_dict, f)
-            with open(f"{model_path}/model.txt") as f: 
-                json.dump(model_dict, f)
-        """
+
         test_model.summary()
 
         test_data = self.get_data('test', data_test, {**opts['model_opts'], 'batch_size': 1})
 
         test_results = test_model.predict(test_data['data'][0],
                                           batch_size=1, verbose=1)
+        
         acc = accuracy_score(test_data['data'][1], np.round(test_results))
         f1 = f1_score(test_data['data'][1], np.round(test_results))
         auc = roc_auc_score(test_data['data'][1], np.round(test_results))
@@ -1444,19 +1438,10 @@ class ActionPredict(object):
         precision = precision_score(test_data['data'][1], np.round(test_results))
         recall = recall_score(test_data['data'][1], np.round(test_results))
         pre_recall = precision_recall_curve(test_data['data'][1], test_results)
-        
-        # THIS IS TEMPORARY, REMOVE BEFORE RELEASE
-        with open(os.path.join(model_path, 'test_output.pkl'), 'wb') as picklefile:
-            pickle.dump({'tte': test_data['tte'],
-                         'pid': test_data['ped_id'],
-                         'gt':test_data['data'][1],
-                         'y': test_results,
-                         'image': test_data['image']}, picklefile)
             
         with open(os.path.join(model_path, 'predictions.pkl'), 'wb') as picklefile:
             pickle.dump({'predictions': test_results,
                          'test_data': test_data['data'][1]}, picklefile)
-
 
         print('acc:{:.2f} auc:{:.2f} f1:{:.2f} precision:{:.2f} recall:{:.2f}'.format(acc, auc, f1, precision, recall))
 

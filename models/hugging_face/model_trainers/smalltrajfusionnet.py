@@ -66,7 +66,7 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesModel):
         train_dataset, val_dataset, val_transforms_dicts = get_timeseries_datasets(
             data_train, data_val, model, generator, video_model_config,
             get_image_transform=True, img_model_config=None,
-            dataset_statistics=dataset_statistics, ignore_sem_map=True)
+            dataset_statistics=dataset_statistics)
 
         warmup_ratio = 0.1
         args = TrainingArguments(

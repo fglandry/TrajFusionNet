@@ -1,14 +1,13 @@
-import copy
-import cv2
-import numpy as np
 import os
 import pickle
+from typing import Any
+
+from datasets import load_metric
 from PIL import Image
+import numpy as np
 from scipy.special import softmax
-import time
 import torch
 from torch.utils.data import Dataset
-from datasets import load_metric
 
 from transformers import AutoImageProcessor
 from torchvision.transforms import (CenterCrop, 
@@ -28,16 +27,6 @@ class HuggingFaceImageClassificationModel():
         return compute_huggingface_metrics(eval_pred)
 
     def collate_fn(self, examples):
-        """
-        # permute to (num_frames, num_channels, height, width)
-        pixel_values = torch.stack(
-            [example["video"].permute(1, 0, 2, 3) for example in examples]
-        )
-        labels = [example["label"] for example in examples]
-        labels = torch.stack(labels) # is it needed? added
-        labels = torch.squeeze(labels) # added
-        return {"pixel_values": pixel_values, "labels": labels}
-        """
         pixel_values = torch.stack([example["pixel_values"] for example in examples])
         labels = torch.tensor([example["label"] for example in examples])
         if "pixel_values_2" in examples[0]:
@@ -47,6 +36,7 @@ class HuggingFaceImageClassificationModel():
             return {"pixel_values": pixel_values, "labels": labels}
 
 
+"""
 def get_image_datasets(data_train, data_val, generator, 
                        img_model_config,
                        dataset_statistics, 
@@ -91,7 +81,7 @@ def get_image_datasets(data_train, data_val, generator,
     }
 
     return train_dataset, val_dataset, val_transforms_dicts
-
+"""
 
 class TorchImageDataset(Dataset):
     def __init__(self, data, targets, data_type, generator=False, 
@@ -171,7 +161,7 @@ def get_image_item(index, data, data_type, generator,
     
     return convert_img_to_format_used_by_transform(item, debug)
 
-def convert_img_to_format_used_by_transform(item, debug):
+def convert_img_to_format_used_by_transform(item: np.ndarray, debug: bool):
     if item.shape[-1] == 4:
         x = Image.fromarray(item.astype('uint8'), 'RGBA') # return PIL image
     elif item.shape[-1] == 5:
@@ -182,12 +172,13 @@ def convert_img_to_format_used_by_transform(item, debug):
     else:
         x = Image.fromarray(item.astype('uint8'), 'RGB') # return PIL image
     if debug:
-        #x.show()
-        x.save("test.png")
+        x.show()
     return x
 
-def get_image_transforms(image_processor, num_channels=3, 
-                         dataset_statistics=None, modality=None):
+def get_image_transforms(image_processor: Any, 
+                         num_channels: int =3, 
+                         dataset_statistics: dict = None, 
+                         modality=None):
 
     if dataset_statistics:
         normalize = Normalize(
@@ -240,7 +231,6 @@ def get_image_transforms(image_processor, num_channels=3,
         )
 
     return train_transforms, val_transforms
-
 
 def test_image_based_model(
         test_data,
@@ -299,40 +289,3 @@ def test_image_based_model(
     recall = test_results["test_recall"]
 
     return acc, auc, f1, precision, recall
-
-
-def get_vit_image_transforms(processor):
-
-    image_mean, image_std = processor.image_mean, processor.image_std
-    size = processor.size["height"]
-
-    normalize = Normalize(mean=image_mean, std=image_std)
-    _train_transforms = Compose(
-            [
-                RandomResizedCrop(size),
-                RandomHorizontalFlip(),
-                ToTensor(),
-                normalize,
-            ]
-        )
-
-    _val_transforms = Compose(
-            [
-                Resize(size),
-                CenterCrop(size),
-                ToTensor(),
-                normalize,
-            ]
-        )
-
-    """
-    def train_transforms(examples):
-        examples['pixel_values'] = [_train_transforms(image.convert("RGB")) for image in examples['img']]
-        return examples
-
-    def val_transforms(examples):
-        examples['pixel_values'] = [_val_transforms(image.convert("RGB")) for image in examples['img']]
-        return examples
-    """
-
-    return _train_transforms, _val_transforms

@@ -1,19 +1,17 @@
-import copy
-from typing import Optional, Tuple, Union
+from typing import Any, Optional
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torchsummary import summary
-from transformers import VanModel, TrainingArguments, Trainer, TimesformerConfig
+from transformers import TrainingArguments, Trainer
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
-from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
 from models.hugging_face.model_trainers.trajectorytransformerb import load_pretrained_encoder_transformer
-from models.hugging_face.model_trainers.van import load_pretrained_van, VAN
-from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, normalize_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
-from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
+from models.hugging_face.model_trainers.van import load_pretrained_van
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model
+from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TorchTimeseriesDataset
+from models.hugging_face.utilities import compute_loss, get_device
 from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.custom_layers_pytorch import SelfAttention
 from utils.data_load import DataGenerator
@@ -32,7 +30,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
               batch_size: int,
               epochs: int,
               model_path: str,   
-              generator=False,
+              generator: bool = False,
               train_opts: dict = None,  
               dataset_statistics: dict = None,
               hyperparams: dict = None,
@@ -45,23 +43,21 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         Args:
             data_train [dict]: training data (data_train['data'][0] contains the generator)
             data_val [DataGenerator]: validation data
+            batch_size [int]: batch size
+            epochs [int]: number of epochs
             model_path [str]: path where the model will be saved
+            generator [bool]: specifies if a generator is used to load data
             train_opts [str]: training options (includes learning rate)
             dataset_statistics [dict]: contains dataset statistics such as avg / std dev per feature
+            hyperparams [dict]: dict containing hyperparameters to use, if enabled
             class_w [list]: class weights
             test_only [bool]: is set to True, model will not be trained, only tested
+            train_end_to_end [bool]: if True, all modules in the network will be trained (see modular
+                                     training section in the paper)
+            submodels_paths [dict]: dictionary containing paths to submodels saved on disk
         """
 
         print("Starting model loading for model TrajFusionNet ===========================")
-
-        """
-        submodels_paths = {
-            "traj_tf_path": "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24",
-            "enc_tf_path": "data/models/jaad/TrajectoryTransformerb/20Nov2024-12h02m51s_TJ8",
-            "van_path": "data/models/jaad/VAN/25Dec2024-11h25m13s_VA6B",
-            "van_prev_path": "data/models/jaad/VAN/25Dec2024-13h28m35s_VA7B"
-        }
-        """
 
         # Get hyperparameters (if specified) and model configs
         hyperparams = hyperparams.get(self.__class__.__name__.lower(), {}) if hyperparams else {}
@@ -85,7 +81,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         train_dataset, val_dataset, val_transforms_dicts = get_timeseries_datasets(
             data_train, data_val, model, generator, None,
             get_image_transform=True, img_model_config=None,
-            dataset_statistics=dataset_statistics, ignore_sem_map=True)
+            dataset_statistics=dataset_statistics)
 
         warmup_ratio = 0.1
         args = TrainingArguments(
@@ -124,8 +120,9 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         }
     
     def train_with_initial_vam_branch_disabling(self,
-            model, epochs, args, train_dataset, 
-            val_dataset, data_train, train_opts):
+            model: Any, epochs: int, 
+            args: TrainingArguments, train_dataset: TorchTimeseriesDataset, 
+            val_dataset: TorchTimeseriesDataset, data_train: dict, train_opts: dict):
         
         best_metric = 0
         best_trainer = None
@@ -194,7 +191,6 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
              dataset_name: str = "",
              generator: bool = False,
              test_only: bool = False,
-             complete_data=None,
              **kwargs):
         
         print("Starting inference using trained model ===========================")
