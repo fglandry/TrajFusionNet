@@ -69,12 +69,25 @@ def combine_beh_seq(beh_seq_jaad, beh_seq_pie):
 
     return beh_seq
 
-def compute_sequences(d, data_raw, opts, obs_length, time_to_event, olap_res,
-                      add_normalized_abs_box=False, 
-                      add_box_center_speed=False,
-                      add_pose=False,
-                      action_predict_obj_ref=None):
-    # olap_res = 3 # todo: remove
+def compute_sequences(d: dict, data_raw: dict, opts: dict, 
+                      obs_length: int, time_to_event: list, olap_res: int,
+                      add_normalized_abs_box: bool = False, 
+                      add_box_center_speed: bool = False,
+                      action_predict_obj_ref = None):
+    """ Compute sequences (t=16) from pedestrian tracks
+    Args:
+        d [dict]: sequence data dictionary
+        data_raw [dict]: raw data dictionary
+        opts [dict]: model opts
+        obs_length [int]: observation period length
+        time_to_event [list]: list of two time values which consist of the start and
+                              the end of the prediction horizon
+                              (see https://doi.org/10.1016/j.neucom.2024.129105)
+        olap_res [int]: overlap factor
+        add_normalized_abs_box [bool]: add normalized absolute box coordinates to
+                                       sequence data dictionary
+        add_box_center_speed [bool]: add bounding box center speed to sequence data dictionary
+    """
     trajectories = []
 
     if add_normalized_abs_box:
@@ -84,18 +97,14 @@ def compute_sequences(d, data_raw, opts, obs_length, time_to_event, olap_res,
     if add_box_center_speed:
         d['box_center_speed'] = copy.deepcopy(d['center'])
         d = action_predict_obj_ref.compute_box_speed(d, k="box_center_speed")
-    if add_pose:
-        d['pose'] = copy.deepcopy(d['ped_id'])
-        d = action_predict_obj_ref.compute_pose(d, k="pose", model_opts=opts)
-
-                                
+        
     for k in d.keys():
         seqs = []
         for seq_idx, seq in enumerate(d[k]):
             if opts.get("seq_type")=="trajectory":
                 TRAJECTORY_PREDICTION_LENGTH = 60
-                start_idx = 0 # len(seq) - obs_length - time_to_event[1]
-                end_idx = len(seq) - obs_length - TRAJECTORY_PREDICTION_LENGTH # len(seq) - obs_length - time_to_event[1]
+                start_idx = 0
+                end_idx = len(seq) - obs_length - TRAJECTORY_PREDICTION_LENGTH
                 seqs.extend([seq[i:i + obs_length] for i in
                                 range(start_idx, end_idx + 1, olap_res)])
                 if k == "box_org":
@@ -108,22 +117,14 @@ def compute_sequences(d, data_raw, opts, obs_length, time_to_event, olap_res,
                     elif add_box_center_speed:
                         box_center_speed_seq = d["box_center_speed"][seq_idx]
                         combined_seq = [s + box_center_speed_seq[idx] + speed_seq[idx] for idx, s in enumerate(seq)]
-                    elif add_pose:
-                        pose = d["pose"][seq_idx]
-                        pose = [[p for i, p in enumerate(points) if i in [0,5,6,11,12,13,18,19,24,25]] for points in pose]
-                        # combined_seq = [pose[idx] for idx, s in enumerate(seq)]
-                        combined_seq = [s + pose[idx] + speed_seq[idx] for idx, s in enumerate(seq)]
-                        test = 10
                     else:
                         combined_seq = [s + speed_seq[idx] for idx, s in enumerate(seq)]
 
-
                     # Get trajectory following observation length
-                    start_idx = 0 # len(seq) - obs_length - time_to_event[1]
-                    # end_idx = len(seq) - obs_length - time_to_event[1]
-                    end_idx = len(seq) - obs_length - TRAJECTORY_PREDICTION_LENGTH # TODO: verify
+                    start_idx = 0
+                    end_idx = len(seq) - obs_length - TRAJECTORY_PREDICTION_LENGTH
                     trajectories.extend([combined_seq[i+obs_length-1:i+obs_length+TRAJECTORY_PREDICTION_LENGTH] \
-                                        for i in range(start_idx, end_idx + 1, olap_res)]) # obs_length+16]
+                                        for i in range(start_idx, end_idx + 1, olap_res)])
                     for idx, t in enumerate(trajectories):
                         if len(t) != TRAJECTORY_PREDICTION_LENGTH+1:
                             raise Exception

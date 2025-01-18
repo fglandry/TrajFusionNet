@@ -7,20 +7,34 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+
 def get_generator(
-        _data, # data itself (list of numpy.ndarray)
-        data,  # metadata dictionnary (with keys 'box', 'ped_id', etc...)
-        data_sizes,
-        process,
-        global_pooling,
-        model_opts,
-        data_type,
-        combined_model=False
+        _data: list, 
+        data: dict,
+        data_sizes: list,
+        process: bool,
+        global_pooling: str,
+        model_opts: dict,
+        data_type: str,
+        combined_model: bool = False
         ):
+    """ Get generator object 
+    Args:
+        _data [list]: data to use for training (list of numpy.ndarray)
+        data [dict]: metadata dictionnary (with keys 'box', 'ped_id', etc...)
+        data_sizes [list]: list of data size for each feature
+        process [bool]: add additional processing to features when loading data
+        global_pooling [str]: type of pooling
+        model_opts [dict]: model options
+        data_type [str]: data split (train, val, test)
+        combined_model [bool]: if the model combines special data features
+
+    """
+
     pytorch, tensorflow = False, True
     if model_opts.get("frameworks") and model_opts["frameworks"].get("pytorch"):
         pytorch, tensorflow = True, False
-        batch_size = 1 # when using pytorch, we want a generator object that
+        batch_size = 1 # when using pytorch/huggingface, we want a generator object that
                        # will return a batch of 1. The actual batch size using
                        # model_opts['batch_size'] is specified in the huggingface
                        # TrainingArguments
@@ -51,15 +65,15 @@ def get_generator(
                   # Pytorch's Dataset class will take care of building the batches later.
         target_data = _get_target_data(data, model_opts)
         new_data = (DataGenerator(data=_data,
-                                labels=target_data,
-                                data_sizes=data_sizes,
-                                process=process,
-                                global_pooling=global_pooling,
-                                input_type_list=input_type_list,
-                                batch_size=batch_size,
-                                shuffle=data_type != 'test',
-                                to_fit=data_type != 'test',
-                                combined_model=combined_model
+                                  labels=target_data,
+                                  data_sizes=data_sizes,
+                                  process=process,
+                                  global_pooling=global_pooling,
+                                  input_type_list=input_type_list,
+                                  batch_size=batch_size,
+                                  shuffle=data_type != 'test',
+                                  to_fit=data_type != 'test',
+                                  combined_model=combined_model
                             ), 
                     target_data
         )
@@ -67,13 +81,8 @@ def get_generator(
         raise Exception()
     return new_data
 
-def _get_target_data(data, model_opts):
+def _get_target_data(data: dict, model_opts: dict):
     if "tte" in model_opts.get("multi_objectives", []):
-        """
-        normalized_tte_data = [(e - 30.0) / 60.0 if data['crossing'][i]==1 \
-                              else np.array([1.0]) \
-                              for (i, e) in enumerate(data['tte'])]
-        """
         normalized_tte_data = [(e - 30.0) / 31.0 if data['crossing'][i]==1 \
                               else np.array([1.0]) \
                               for (i, e) in enumerate(data['tte'])]
@@ -90,7 +99,8 @@ def _get_target_data(data, model_opts):
     else:
         return data['crossing']
 
-def get_input_type_list_for_combined_model(data_sizes, model_opts):
+def get_input_type_list_for_combined_model(data_sizes: list, 
+                                           model_opts: dict):
     combine_indexes = model_opts.get("process_input_features", {"indexes_to_stack": []})["indexes_to_stack"]
 
     input_type_list = []
@@ -111,17 +121,17 @@ def get_input_type_list_for_combined_model(data_sizes, model_opts):
 class DataGenerator(Sequence):
 
     def __init__(self,
-                 data=None,
-                 labels=None,
-                 data_sizes=None,
-                 process=False,
-                 global_pooling=None,
-                 input_type_list=None,
-                 batch_size=32,
-                 shuffle=True,
-                 to_fit=True,
-                 stack_feats=False,
-                 combined_model=False):
+                 data: list = None,
+                 labels: np.ndarray = None,
+                 data_sizes: list = None,
+                 process: bool = False,
+                 global_pooling: str = None,
+                 input_type_list: list = None,
+                 batch_size: int = 32,
+                 shuffle: bool = True,
+                 to_fit: bool = True,
+                 stack_feats: bool = False,
+                 combined_model: bool = False):
         self.data = data
         self.labels = labels
         self.process = process
@@ -133,9 +143,8 @@ class DataGenerator(Sequence):
         self.to_fit = to_fit
         self.stack_feats = stack_feats
         self.indices = None
-        self.on_epoch_end()
         self.combined_model = combined_model
-        self.get_hog_features_from_disk = True
+        self.on_epoch_end()
 
     def __len__(self):
         return int(np.floor(len(self.data[0])/self.batch_size))
@@ -196,74 +205,22 @@ class DataGenerator(Sequence):
                             else:
                                 features_batch[i, j, ] = img_features
                 else:
-                    hog_special_case = self.get_hog_features_from_disk and "hog_descriptor" in input_type
-                    if hog_special_case:
-                        np_seq_arr = self.data[input_type_idx][index]
-                        for j, np_arr in enumerate(np_seq_arr):
-                            cached_path = np_arr[-1] # last element is a path to a pickle file that contains data for all modalities
-                            np_arr = open_pickle_file(cached_path)
-                            features_batch[i, j, ] = np_arr
-                    else:
-                        features_batch[i, ] = self.data[input_type_idx][index]
+                    features_batch[i, ] = self.data[input_type_idx][index]
             X.append(features_batch)
         return X
 
     def _generate_y(self, indices):
         return np.array(self.labels[indices])
 
-# Load images from disk
-class TorchDataset(Dataset):
-    def __init__(self, data, targets, transform=None):
-        #self.data = torch.from_numpy(data)
-        self.targets = torch.LongTensor(targets)
-        self.transform = transform
-        
-    def __getitem__(self, index):
-        #x = {"video": np.expand_dims(self.data[index], axis=0)}
-        x = {"video": self.data[index].permute(3, 0, 1, 2)}
-        #y = self.targets[index]
-        
-        if self.transform:
-            #x = Image.fromarray(self.data[index].astype(np.uint8).transpose(1,2,0))
-            x = self.transform(x)
-        
-        x["label"] = self.targets[index]
-
-        return x
-    
-    def __len__(self):
-        return len(self.data)
-
-# Load images from memory, not good!
-class MyDataset(Dataset):
-    def __init__(self, data, targets, transform=None):
-        self.data = torch.from_numpy(data)
-        self.targets = torch.LongTensor(targets)
-        self.transform = transform
-        
-    def __getitem__(self, index):
-        #x = {"video": np.expand_dims(self.data[index], axis=0)}
-        x = {"video": self.data[index].permute(3, 0, 1, 2)}
-        #y = self.targets[index]
-        
-        if self.transform:
-            #x = Image.fromarray(self.data[index].astype(np.uint8).transpose(1,2,0))
-            x = self.transform(x)
-        
-        x["label"] = self.targets[index]
-
-        return x
-    
-    def __len__(self):
-        return len(self.data)
-    
 
 def get_static_context_data(self, 
-                            model_opts, 
-                            data, 
-                            data_gen_params, 
-                            feature_type,
+                            model_opts: dict, 
+                            data: dict, 
+                            data_gen_params: dict, 
+                            feature_type: str,
                             submodels_paths: dict = None):
+    """ Get static context data (i.e. frame at time t-15 or at time t)"""
+    
     # Get some settings from config
     concatenate_frames = "concatenate_frames" in model_opts and model_opts["concatenate_frames"]["enabled"]
     add_optical_flow = "flow_optical" in feature_type
@@ -273,14 +230,12 @@ def get_static_context_data(self,
     get_first_static_feature_instead_of_last = (feature_type == "scene_context_with_segmentation_v5" \
                                                 or "previous" in feature_type \
                                                     or model_opts["model"]=="VanMultiscale" and feature_type=="local_context")
-    #data_gen_params['get_first_static_feature'] = get_first_static_feature_instead_of_last
 
     static_index = -1
     if get_first_static_feature_instead_of_last:
         static_index = 0
 
     # Keep latest element in sequence (model will be run on one frame)
-    # ToDo: revisit this
     full_bbox_sequences = None
     full_rel_bbox_seq = None
     full_veh_speed = None
