@@ -24,7 +24,6 @@ from utils.action_predict_utils.trajectory_overlays import TrajectoryOverlays
 from utils.action_predict_utils.sequences import compute_sequences
 from utils.data_load import get_generator, get_static_context_data
 from utils.dataset_statistics import get_dataset_statistics
-from utils.optical_flow import process_optical_flow_v2
 from utils.utils import *
 
 class ActionPredict(object):
@@ -123,25 +122,27 @@ class ActionPredict(object):
         return img_seq
 
     # Processing images and generate features
-    def load_images_crop_and_process(self, img_sequences, bbox_sequences,
-                                     ped_ids, save_path,
-                                     full_bbox_sequences=None,
-                                     full_rel_bbox_seq=None,
-                                     full_veh_speed=None,
-                                     data_type='train',
-                                     crop_type='none',
-                                     crop_mode='warp',
-                                     feature_type='',
-                                     crop_resize_ratio=2,
-                                     target_dim=(224, 224),
-                                     process=False,
-                                     regen_data=False,
-                                     concatenate_frames=False,
-                                     is_feature_static=False,
-                                     store_data_only=False,
-                                     model_opts=None,
+    def load_images_crop_and_process(self, img_sequences: np.ndarray, 
+                                     bbox_sequences: np.ndarray,
+                                     ped_ids: np.ndarray, 
+                                     save_path: str,
+                                     full_bbox_sequences: np.ndarray = None,
+                                     full_rel_bbox_seq: np.ndarray = None,
+                                     full_veh_speed: np.ndarray = None,
+                                     data_type: str = 'train',
+                                     crop_type: str = 'none',
+                                     crop_mode: str = 'warp',
+                                     feature_type: str = '',
+                                     crop_resize_ratio: int = 2,
+                                     target_dim: tuple = (224, 224),
+                                     process: bool = False,
+                                     regen_data: bool = False,
+                                     concatenate_frames: bool = False,
+                                     is_feature_static: bool = False,
+                                     store_data_only: bool = False,
+                                     model_opts: dict = None,
                                      submodels_paths: dict = None,
-                                     debug=False):
+                                     debug: bool = False):
         """
         Generate visual feature sequences by reading and processing images
         Args:
@@ -149,6 +150,9 @@ class ActionPredict(object):
             bbox_sequences: Sequences of bounding boxes
             ped_ids: Sequences of pedestrian ids
             save_path: Path to the root folder to save features
+            full_bbox_sequences: full sequence of bounding boxes (original values)
+            full_rel_bbox_seq: full sequence of bounding boxes with offset subtracted
+            full_veh_speed: full sequence of vehicle speed
             data_type: The type of features, train/test/val
             crop_type: The method to crop the images.
             Options are 'none' (no cropping)
@@ -165,6 +169,10 @@ class ActionPredict(object):
             regen_data: Whether regenerate visual features. This will overwrite the cached features
             concatenate_frames: add concatenated frames feature to returned sequence
             is_feature_static: whether the feature is static (we should only keep the last frame)
+            store_data_only: if set to True, processed images will be saved on disk but not returned
+            model_opts: model options
+            submodels_paths: dictionary containing paths to submodels saved on disk
+            debug: activates debugging print statements
         Returns:
             Numpy array of visual features
             Tuple containing the size of features
@@ -228,7 +236,6 @@ class ActionPredict(object):
                         #show_image(img_features) if debug else None
                     else:
                         img_data = cv2.imread(imp)
-                        #show_image(img_data) if debug else None
                         if flip_image:
                             img_data = cv2.flip(img_data, 1)
                         if crop_type == 'bbox':
@@ -239,7 +246,6 @@ class ActionPredict(object):
                             bbox = list(map(int, bbox[0:4]))
                             cropped_image = img_data[bbox[1]:bbox[3], bbox[0]:bbox[2], :]
                             img_features = img_pad(cropped_image, mode='pad_resize', size=target_dim[0])
-                            #img_features = img_pad(cropped_image, mode='pad_resize', size=300)
                             show_image(img_features) if debug else None
                         elif 'surround' in crop_type:
                             b_org = list(map(int, b[0:4])).copy()
@@ -275,11 +281,6 @@ class ActionPredict(object):
                         else:
                             raise ValueError('ERROR: Undefined value for crop_type {}!'.format(crop_type))
                         
-                    if 'flow_optical' in feature_type:
-                        img_features = process_optical_flow_v2(img_data, target_dim, prev_img_list, feature_type)
-                    if 'segmentation' in feature_type:
-                        img_features = get_semantic_segmentation(img_features, img_data, target_dim, feature_type, b, crop_mode)
-                        print(f"Processing {img_save_path} ...")
                     if preprocess_input is not None:
                         img_features = preprocess_input(img_features)
                     if process:
@@ -344,8 +345,6 @@ class ActionPredict(object):
             feat_shape = sequences.shape[1:]
 
         return sequences, feat_shape
-
-        # Processing images anf generate features
 
     def get_optical_flow(self, img_sequences, bbox_sequences,
                                      ped_ids, save_path,
@@ -470,7 +469,8 @@ class ActionPredict(object):
             feat_shape = sequences.shape[1:]
         return sequences, feat_shape
 
-    def get_data_sequence(self, data_type, data_raw, opts):
+    def get_data_sequence(self, data_type: str, 
+                          data_raw: dict, opts: dict):
         """
         Generates raw sequences from a given dataset
         Args:
@@ -516,15 +516,14 @@ class ActionPredict(object):
                     d[k][i] = d[k][i][- obs_length - time_to_event:-time_to_event]
             d['tte'] = [[time_to_event]]*len(data_raw['bbox'])
         else:
-            overlap = opts['overlap'] # if data_type == 'train' else 0.0
+            overlap = opts['overlap']
             olap_res = obs_length if overlap == 0 else int((1 - overlap) * obs_length)
             olap_res = 1 if olap_res < 1 else olap_res
             
             # this is where sequences (t=16) are created
             d = compute_sequences(d, data_raw, opts, obs_length, time_to_event, olap_res,
                                   action_predict_obj_ref=self)
-            
-            test = 10
+        
         if normalize:
             d = self.normalize_sequence_data(d, opts)
         else:
@@ -545,9 +544,11 @@ class ActionPredict(object):
                                           n=ts_config["n"])
         return d, neg_count, pos_count
     
-    def normalize_sequence_data(self, d, opts,
-                                normalization_type="relative_subtract"):
+    def normalize_sequence_data(self, d: dict, opts: dict,
+                                normalization_type: str = "relative_subtract"):
         """ Args:
+        d [dict]: sequence data dictionary
+        opts [dict]: model opts
         normalization_type [str]: can be any of:
             "relative_subtract": subtract first position in sequence from 
                                  all sequence elements
@@ -582,19 +583,16 @@ class ActionPredict(object):
             d[k] = np.array(d[k])
         return d
     
-    def compute_positions(self, d, k, opts, normalization_type,
-                          compute_tte_pos=False, 
-                          add_normalized_abs_box=False, 
-                          add_box_center_speed=False,
-                          add_pose=False, 
-                          debug=False):
-        #is_key_std_box = (k == 'box' or k == 'box_org')
+    def compute_positions(self, d: dict, k: str, 
+                          opts: dict, normalization_type: str,
+                          compute_tte_pos: bool = False, 
+                          add_normalized_abs_box: bool = False, 
+                          add_box_center_speed: bool = False,
+                          ):
         if (('box' not in k and 'veh' not in k and "tte" not in k and "trajectories" not in k) \
             or k=='box_org') and k != 'center':
             for i in range(len(d[k])):
                 d[k][i] = d[k][i][1:]
-        #elif k == 'box_org':
-        #    return
         else:
             # len(d[k]) is the number of tracks
             if k == 'tte' or k == 'normalized_abs_box_org' or k == 'box_center_speed_org':
@@ -606,10 +604,6 @@ class ActionPredict(object):
                     d[k][i] = np.subtract(d[k][i][0:], d["box_org"][i][-1]).tolist()
                     d = self.compute_positions_normalization_divide_by_img_dims(d, k, opts)
             elif k == 'trajectories':
-                """
-                d = self.compute_positions_normalization_divide_by_img_dims(d, k, opts,
-                                                                            replace_by_patch_id=False)
-                """
                 for i in range(len(d[k])):
                     box_rel_coords = [el[:4] for el in d[k][i][1:]]
                     speed_vals = [[el[-1]] for el in d[k][i][1:]]
@@ -621,20 +615,12 @@ class ActionPredict(object):
 
                     if add_normalized_abs_box:
                         normalized_abs_box = [[el[4:8]] for el in original_trajectory]
-                        # normalized_abs_box = [[el] for el in original_trajectory]
                         # d[k][i] = [c + normalized_abs_box[idx][0] + speed_vals[idx] for idx, c in enumerate(d[k][i])]
                         d[k][i] = [normalized_abs_box[idx][0] for idx, c in enumerate(d[k][i])]
-                        test = 10
                     elif add_box_center_speed:
                         box_center_speed = [[el[4:6]] for el in original_trajectory]
                         # d[k][i] = [box_center_speed[idx][0] for idx, c in enumerate(d[k][i])]
                         d[k][i] = [c + box_center_speed[idx][0] + speed_vals[idx] for idx, c in enumerate(d[k][i])]
-                    elif add_pose:
-                        #pose_keypoints = [el[4:14] for el in original_trajectory]
-                        pose_keypoints = [el for el in original_trajectory]
-                        d[k][i] = [c + pose_keypoints[idx] + speed_vals[idx] for idx, c in enumerate(d[k][i])]
-                        #d[k][i] = [pose_keypoints[idx] for idx, c in enumerate(d[k][i])]
-                        test = 10
                     else:
                         d[k][i] = np.subtract(box_rel_coords, d["box_org"][i][0]).tolist()
                         d[k][i] = [c + speed_vals[idx] for idx, c in enumerate(d[k][i])]
@@ -789,12 +775,13 @@ class ActionPredict(object):
         return d
     
     def compute_veh_speed(self, d, k, dataset):
-        """ After swapping encodings, new values should be:
-            0: stopped
-            1: decelerating
-            2: moving slow
-            3: moving fast
-            4: accelerating
+        """ Compute vehicle speed. After swapping encodings, new encoded
+            values should be:
+                0: stopped
+                1: decelerating
+                2: moving slow
+                3: moving fast
+                4: accelerating
         """
         
         def swap_speed_encodings(seq, a, b):
@@ -891,8 +878,17 @@ class ActionPredict(object):
         aux_name = '_'.join(aux_name).strip('_')
         return aux_name
     
-    def get_context_data(self, model_opts, data, data_type, feature_type,
+    def get_context_data(self, model_opts: dict, data: dict, 
+                         data_type: str, feature_type: dict,
                          submodels_paths: dict = None):
+        """ Get image-based context data
+        Args:
+            model_opts [dict]: model options for generating data
+            data [dict]: processed data dictionary
+            data_type [str]: data split (train, val, test)
+            feature_type [str]: name of feature (obs_input_type)
+            submodels_paths: dictionary containing paths to submodels saved on disk
+        """
         print('\n#####################################')
         print('Generating {} {}'.format(feature_type, data_type))
         print('#####################################')
@@ -912,15 +908,12 @@ class ActionPredict(object):
         elif 'surround' in feature_type:
             data_gen_params['crop_type'] = 'surround'
             data_gen_params['crop_resize_ratio'] = eratio
-        elif 'with_ped_overlays' in feature_type: # added
+        elif 'with_ped_overlays' in feature_type:
             data_gen_params['crop_type'] = 'ped_overlays'
-        elif 'with_ped' in feature_type: # added:
+        elif 'with_ped' in feature_type:
             data_gen_params['crop_type'] = 'keep_ped'
-        elif 'scene_context' in feature_type and 'segmentation' not in feature_type: # added
+        elif 'scene_context' in feature_type and 'segmentation' not in feature_type:
             data_gen_params['crop_type'] = 'remove_ped'
-        elif 'ped_segmentation' in feature_type:
-            data_gen_params['crop_type'] = 'bbox'
-            data_gen_params['crop_mode'] = 'pad_resize'
         elif 'bbox' in feature_type:
             data_gen_params['crop_type'] = 'bbox_resize'
         save_folder_name = feature_type
@@ -951,16 +944,21 @@ class ActionPredict(object):
                                                      feature_type=feature_type,
                                                      **data_gen_params)
 
-    def get_data(self, data_type, data_raw, model_opts,
-                 combined_model=False,
+    def get_data(self, data_type: str, 
+                 data_raw: dict, 
+                 model_opts: dict,
+                 combined_model: bool = False,
                  submodels_paths: dict = None
-                ):
+        ):
         """
         Generates data train/test/val data
         Args:
             data_type: Split type of data, whether it is train, test or val
             data_raw: Raw tracks from the dataset
             model_opts: Model options for generating data
+            combined_model: if set to True, the model utilized features (obs_input_type) that
+                            require further processing
+            submodels_paths: dictionary containing paths to submodels saved on disk
         Returns:
             A dictionary containing, data, data parameters used for model generation,
             effective dimension of data (the number of rgb images to be used calculated accorfing
@@ -977,7 +975,7 @@ class ActionPredict(object):
         if 'speed' in data.keys():
             data_type_sizes_dict['speed'] = data['speed'].shape[1:]
 
-        # Store the type and size of each image
+        # Store data types and sizes for each feature
         _data = []
         data_sizes = []
         data_types = []
@@ -986,56 +984,9 @@ class ActionPredict(object):
             if 'local' in d_type or 'context' in d_type or 'bbox' in d_type:
                 features, feat_shape = self.get_context_data(model_opts, data, data_type, d_type,
                                                              submodels_paths=submodels_paths)
-            elif 'segmentation' in d_type: # todo: verify if this gets called
-                features, feat_shape = self.get_context_data(model_opts, data, data_type, d_type)
-            elif 'pose' in d_type:
-                path_to_pose, _ = get_path(save_folder='poses',
-                                           dataset=dataset,
-                                           save_root_folder='data/features')
-                features, _ = get_pose(model_opts,
-                                    data['image'],
-                                    data['box_org'],
-                                    data['ped_id'],
-                                    data_type=data_type,
-                                    file_path=path_to_pose,
-                                    dataset=model_opts['dataset'])
-                feat_shape = features.shape[1:]
-            elif 'segm_map_features' in d_type:
-                raise Exception("Not implemented in this repo")
-            elif 'segm_map_pixels' in d_type:
-                raise Exception("Not implemented in this repo")
-            elif 'segm_map_occurences' in d_type:
-                raise Exception("Not implemented in this repo")
-            elif d_type == 'scene_graph':
-                raise Exception("Not implemented in this repo")
-            elif d_type == 'scene_graph_previous':
-                raise Exception("Not implemented in this repo")
             else:
                 features = data[d_type]
                 feat_shape = features.shape[1:]
-
-            # Get feature descriptors
-            if "ped_scene_segmentation" in d_type or "hog_descriptor" in d_type:
-                if d_type == "ped_scene_segmentation":
-                    descriptor_type = "ped_shape_descriptor"
-                elif d_type == "bbox_hog_descriptor":
-                    descriptor_type = "hog_descriptor"
-                file_path, _ = get_path(save_folder=descriptor_type,
-                                        dataset=dataset,
-                                        save_root_folder='data/features')
-                # Despite the function name, here we're getting pedestrian
-                # shape descriptors (and not pose)
-                features, feat_shape = get_pose(model_opts,
-                                    features,
-                                    data['box_org'],
-                                    data['ped_id'],
-                                    data_type=data_type,
-                                    file_path=file_path,
-                                    dataset=model_opts['dataset'],
-                                    descriptor_type=descriptor_type,
-                                    prev_features=_data,
-                                    do_not_keep_in_memory=True)
-                #feat_shape = features.shape[1:]
 
             _data.append(features)
             data_sizes.append(feat_shape)
@@ -1045,16 +996,16 @@ class ActionPredict(object):
         if "process_input_features" in model_opts and model_opts["process_input_features"]["enabled"]:
             _data, data_sizes = self._process_input_features(_data, data_sizes, model_opts)
         
-        # create the final data file to be returned
+        # create the final data dictionary to be returned
         if self._generator:
             _data = get_generator(_data=_data,
-                                    data=data,
-                                    data_sizes=data_sizes,
-                                    process=process,
-                                    global_pooling=self._global_pooling,
-                                    model_opts=model_opts,
-                                    data_type=data_type,
-                                    combined_model=combined_model
+                                  data=data,
+                                  data_sizes=data_sizes,
+                                  process=process,
+                                  global_pooling=self._global_pooling,
+                                  model_opts=model_opts,
+                                  data_type=data_type,
+                                  combined_model=combined_model
                     )
         else:
             _data = (_data, data['crossing'])
@@ -1066,9 +1017,17 @@ class ActionPredict(object):
                 'data_params': {'data_types': data_types, 'data_sizes': data_sizes},
                 'count': {'neg_count': neg_count, 'pos_count': pos_count}}
 
-    def _process_input_features(self, data, data_sizes, model_opts):
+    def _process_input_features(self, data: dict, 
+                                data_sizes: list, model_opts: dict):
+        """ Apply further processing to input features
+        Args:
+            data [dict]: data dictionary
+            data_sizes [list]: size of each input feature
+            model_opts [dict]: model options
+        """
 
-        def _stack_features(data, data_sizes, indexes_to_stack):
+        def _stack_features(data: list, data_sizes: list, 
+                            indexes_to_stack: list):
 
             if not indexes_to_stack:
                 return data, data_sizes
@@ -1085,8 +1044,7 @@ class ActionPredict(object):
             
             # Stack data itself
             _data = [data[i] for i in indexes_to_stack]
-            # This could obviously be written in a better way, but I'm not
-            # sure how to go about it
+            # TODO: this could obviously be written in a better way
             if len(_data) == 1:
                 _data = np.c_[_data[0]]
             elif len(_data) == 2:
@@ -1104,7 +1062,6 @@ class ActionPredict(object):
             else:
                 raise Exception(f"Number of observation input types ({len(_data)}) is not supported")
             
-            # todo: revisit
             sequence_len = data_sizes[-1][0]
             for index in sorted(indexes_to_stack, reverse=True):
                 del data[index]
@@ -1119,7 +1076,8 @@ class ActionPredict(object):
             
             return data, data_sizes
         
-        def _convert_features_to_static(data, data_sizes, indexes_to_convert_to_static):
+        def _convert_features_to_static(data, data_sizes, 
+                                        indexes_to_convert_to_static):
             for idx in indexes_to_convert_to_static:
                 static_data = list(data[idx])
                 for row_idx in range(len(static_data)):
@@ -1132,23 +1090,14 @@ class ActionPredict(object):
                 
             return data, data_sizes
 
-        """
-        # When data contains image paths, expand the last dimension
-        # to make each data type the same shape
-        for i in range(len(_data)):
-            if len(_data[i].shape) == 2:
-                _data[i] = np.expand_dims(_data[i], -1)
-        """
-
         # Stack some features into one feature
         if model_opts["process_input_features"].get("indexes_to_stack"):
             indexes_to_stack = model_opts["process_input_features"]["indexes_to_stack"]
         else:
-            #indexes_to_stack = list(range(len(data))) # stack all features
             indexes_to_stack = []
         data, data_sizes = _stack_features(data, data_sizes, indexes_to_stack)
 
-        # Change data for some features to static (keep last frame)
+        # Change data for some features to static (i.e. keep last frame)
         if model_opts["process_input_features"].get("static_features_indexes"):
             indexes_to_convert_to_static = model_opts["process_input_features"]["static_features_indexes"] 
             data, data_sizes = _convert_features_to_static(data, data_sizes, indexes_to_convert_to_static)

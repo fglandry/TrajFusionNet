@@ -86,8 +86,17 @@ class BaseTransformerModel(ActionPredict):
         self._mlp_units = num_hidden_units
         self._combined_model = True
 
-    def get_data(self, data_type, data_raw, model_opts,
+    def get_data(self, data_type: str, 
+                 data_raw: dict, 
+                 model_opts: dict,
                  submodels_paths: dict = None):
+        """ Get processed data
+        Args:
+            data_type [str]: data split (train, val, test)
+            data_raw [dict]: raw data dictionary
+            model_opts [dict]: model options
+            submodels_paths [dict]: dictionary containing paths to submodels saved on disk
+        """
 
         # Get model opts specific to each sub-model
         self.combined_model_ops = copy.deepcopy(model_opts)

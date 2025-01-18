@@ -15,6 +15,6 @@ model_opts:
   normalize_boxes: True
 exp_opts:
   datasets: [pie]
-  batch_size: [16, 4, 4]
-  epochs: [15, 40, 40]
-  lr: [5.0e-06, 5.0e-06, 5.0e-06]
+  batch_size: [16]
+  epochs: [15]
+  lr: [5.0e-06]
