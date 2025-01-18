@@ -1,21 +1,18 @@
 import torch
 from torch import nn
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 import torch.nn.functional
 import torch.utils.checkpoint
 from torchsummary import summary
-from typing import Optional, Union, Tuple
+from typing import Optional
 
 from transformers import AutoImageProcessor
 from transformers import TrainingArguments, Trainer
 from transformers.models.van.modeling_van import VanEncoder
 from transformers import VanConfig, VanModel, VanPreTrainedModel
-from transformers.modeling_outputs import BaseModelOutputWithPoolingAndNoAttention, ImageClassifierOutputWithNoAttention
+from transformers.modeling_outputs import BaseModelOutputWithPoolingAndNoAttention
 
 from models.hugging_face.image_utils import test_image_based_model, HuggingFaceImageClassificationModel, TorchImageDataset
-from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
-from models.hugging_face.utils.custom_trainer import CustomTrainer
 from utils.data_load import DataGenerator
 
 

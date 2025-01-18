@@ -33,10 +33,7 @@ def override_create_optimizer(trainer_obj: Trainer,
             else:
                 params_to_lower_lr = []
         else:
-            #params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
-            #                      (p.requires_grad and n.startswith("transformer.traj_TF"))]
             params_to_lower_lr = []
-            
             
         optimizer_grouped_parameters = [
             {

@@ -13,18 +13,17 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, ModelCh
 from tensorflow.keras.applications import vgg16, resnet50
 from tensorflow.keras.optimizers import Adam, SGD, RMSprop
 from tensorflow.keras import regularizers
-from tensorflow.keras.utils import custom_object_scope
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
 
-from models.custom_layers import CustomAttention, T2V
 from utils.action_predict_utils.run_in_subprocess import run_and_capture_model_path
 from utils.action_predict_utils.trajectory_overlays import TrajectoryOverlays
 from utils.action_predict_utils.sequences import compute_sequences
 from utils.data_load import get_generator, get_static_context_data
 from utils.dataset_statistics import get_dataset_statistics
 from utils.utils import *
+
 
 class ActionPredict(object):
     """
@@ -95,7 +94,6 @@ class ActionPredict(object):
             # Change all images (to concatenate together) to the same dimensions
             heights = [img.shape[0] for img in imgs_to_concatenate]
             if len(set(heights)) != 1:
-                #min_height = min(imgs_to_concatenate, key=lambda x: x.shape[0]).shape[0]
                 min_height = min(heights)
                 for i in range(len(imgs_to_concatenate)):
                     imgs_to_concatenate[i] = img_pad(imgs_to_concatenate[i], mode='pad_resize', size=min_height)
@@ -105,8 +103,6 @@ class ActionPredict(object):
             new_img_data = np.concatenate((img_top, img_bottom), axis=0)
 
             new_img_features = img_pad(new_img_data, mode='pad_resize', size=target_dim[0])
-            # new_img_features = cv2.resize(new_img_data, target_dim)
-            # show_image(new_img_features)
             
             # Save concat img to disk
             with open(new_img_save_path, 'wb') as fid:
@@ -685,8 +681,6 @@ class ActionPredict(object):
                 else:
                     img_data = cv2.imread(img_path)
                     img_shape = img_data.shape
-                    if img_shape[0] != 1080 or img_shape[1] != 1920:
-                        test = 10
                     d = self._divide_sequence_by_img_dims(img_shape, d, k, i)
                     save_data_in_pkl(feat_path.rsplit("/", 1)[0], 
                                         feat_path, d[k][i])
@@ -698,7 +692,7 @@ class ActionPredict(object):
         if k == "box_height":
             for seq_idx, seq_el in enumerate(d[k][i]):
                 position = seq_el.copy()
-                position = position[0] / img_shape[0] if second_step_normalize else position[0]# x
+                position = position[0] / img_shape[0] if second_step_normalize else position[0] # x
                 d[k][i][seq_idx] = [position]
         else:
             # For all other data types...
@@ -710,8 +704,6 @@ class ActionPredict(object):
                     position[2] = position[2] / img_shape[1] # y
                     position[3] = position[3] / img_shape[0] # x
                 d[k][i][seq_idx] = position
-                #if not all(i<=1.0 for i in position):
-                #    raise Exception
                 if k == "normalized_abs_box" and replace_by_patch_id:
                     dim = 4
                     center_point = [(position[1]+position[3])/2, (position[0]+position[2])/2] # [x, y]
@@ -720,7 +712,7 @@ class ActionPredict(object):
                     patch_id = (row-1)*dim + (column-1)
                     d[k][i][seq_idx] = [patch_id / (dim*dim)] 
         if k not in ["normalized_abs_box", "normalized_abs_box_org", 
-                     "box_center_speed_org", "box_height", "tte_pos"]: # todo, by default the sequence length should be kept the same
+                     "box_center_speed_org", "box_height", "tte_pos"]: # TODO, by default the sequence length should be kept the same
             d[k][i] = d[k][i][1:] # leave out first element in sequence
         return d
     
@@ -755,9 +747,7 @@ class ActionPredict(object):
     def compute_box_height(self, d, k):
         for i in range(len(d[k])):
             for seq_idx, seq_el in enumerate(d[k][i]):
-                # d[k][i][seq_idx] = [seq_el[2] - seq_el[0]]
                 d[k][i][seq_idx] = [seq_el[3] - seq_el[1]]
-                test = 10
         return d
     
     def compute_pose(self, d, k, model_opts):
@@ -895,7 +885,6 @@ class ActionPredict(object):
         process = model_opts.get('process', True)
         aux_name = self._get_aux_name(model_opts)
         eratio = model_opts['enlarge_ratio']
-        dataset = model_opts['dataset']
 
         data_gen_params = {'data_type': data_type, 'crop_type': 'none',
                            'target_dim': model_opts.get('target_dim', (224, 224))}
@@ -968,7 +957,6 @@ class ActionPredict(object):
         self._generator = model_opts.get('generator', False)
         data_type_sizes_dict = {}
         process = model_opts.get('process', True)
-        dataset = model_opts['dataset']
         data, neg_count, pos_count = self.get_data_sequence(data_type, data_raw, model_opts)
 
         data_type_sizes_dict['box'] = data['box'].shape[1:]
@@ -1383,7 +1371,6 @@ class ActionPredict(object):
         return train_model, class_w, optimizer, f1_metric
 
 
-    # Test Functions
     def test(self, data_test: dict, model_path: dict = '', 
              is_huggingface=False, 
              training_result=None,
@@ -1417,13 +1404,7 @@ class ActionPredict(object):
         with open(os.path.join(model_path, 'configs.yaml'), 'r') as fid:
             opts = yaml.safe_load(fid)
 
-        custom_objects = {
-            "T2V": T2V,
-            "CustomAttention": CustomAttention
-        }
-        with custom_object_scope(custom_objects):
-            test_model = load_model(os.path.join(model_path, 'model.h5'))
-
+        test_model = load_model(os.path.join(model_path, 'model.h5'))
         test_model.summary()
 
         test_data = self.get_data('test', data_test, {**opts['model_opts'], 'batch_size': 1})

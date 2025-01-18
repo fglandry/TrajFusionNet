@@ -1,11 +1,9 @@
 import copy
-from utils.utils import *
-
-from tensorflow.keras.utils import Sequence
 
 import numpy as np
-import torch
-from torch.utils.data import Dataset
+from tensorflow.keras.utils import Sequence
+
+from utils.utils import *
 
 
 def get_generator(

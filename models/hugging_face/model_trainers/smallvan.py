@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 import torch.nn.functional
 import torch.utils.checkpoint
 from torchsummary import summary
@@ -9,13 +8,12 @@ from typing import Optional, Union, Tuple
 from transformers import AutoImageProcessor
 from transformers import TrainingArguments, Trainer
 from transformers.models.van.modeling_van import VanEncoder
-from transformers import VanForImageClassification, VanPreTrainedModel, VanConfig
+from transformers import VanPreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPoolingAndNoAttention, ImageClassifierOutputWithNoAttention
 
 from models.hugging_face.image_utils import test_image_based_model, HuggingFaceImageClassificationModel, TorchImageDataset
-from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.hugging_face.utilities import compute_loss, get_device
-from models.hugging_face.utils.custom_trainer import CustomTrainer
+
 
 class SmallVAN(HuggingFaceImageClassificationModel):
 
@@ -42,9 +40,6 @@ class SmallVAN(HuggingFaceImageClassificationModel):
             data_train, dataset_statistics
         )
 
-        #model_ckpt = "Visual-Attention-Network/van-base"
-        #model_ckpt = "Visual-Attention-Network/van-large"
-        #model_ckpt = "Visual-Attention-Network/van-small"
         model_ckpt = "Visual-Attention-Network/van-tiny"
 
         model = VanEncodingsForImageClassification.from_pretrained(
@@ -54,19 +49,6 @@ class SmallVAN(HuggingFaceImageClassificationModel):
             class_w=class_w,
             dataset_name=kwargs["model_opts"]["dataset_full"])
         summary(model)
-        """
-        model = VanForImageClassification.from_pretrained(
-            "data/models/jaad/VAN/27Aug2023-12h11m53s_ENC2",
-            id2label=id2label,
-            label2id=label2id,
-            ignore_mismatched_sizes=True)
-        # Make all layers untrainable
-        for idx, child in enumerate(model.children()):
-            if idx == 1:
-                continue
-            for param in child.parameters():
-                param.requires_grad = False
-        """
 
         if not generator:
             train_dataset = TorchImageDataset(
@@ -87,7 +69,6 @@ class SmallVAN(HuggingFaceImageClassificationModel):
                 generator=generator, image_processor=image_processor, num_channels=config.num_channels
             )
 
-        warmup_ratio = 0.1
         args = TrainingArguments(
             output_dir=model_path,
             remove_unused_columns=False,
@@ -96,7 +77,6 @@ class SmallVAN(HuggingFaceImageClassificationModel):
             learning_rate=5e-5,
             per_device_train_batch_size=batch_size, 
             per_device_eval_batch_size=batch_size,
-            # gradient_accumulation_steps=4,
             num_train_epochs=epochs,
             warmup_ratio=0.1,
             logging_steps=10,
@@ -107,22 +87,6 @@ class SmallVAN(HuggingFaceImageClassificationModel):
             # device_map='auto' // not supported
         )
 
-        #optimizer, lr_scheduler = get_optimizer(self, model, args, 
-        #    train_dataset, val_dataset, data_train, train_opts, warmup_ratio)
-
-        """
-        trainer = CustomTrainer(
-            model,
-            args,
-            train_dataset=train_dataset,
-            eval_dataset=val_dataset,
-            tokenizer=image_processor,
-            compute_metrics=self.compute_metrics,
-            data_collator=self.collate_fn,
-            optimizers=(optimizer, lr_scheduler),
-            class_w=self.class_w,
-        )
-        """
         trainer = Trainer(
             model,
             args,
@@ -136,18 +100,11 @@ class SmallVAN(HuggingFaceImageClassificationModel):
         # Train model
         print("Starting training of model VAN: Visual Attention Network ===========================")
         train_results = trainer.train()
-
-        """
-        if free_memory:
-            free_train_and_val_memory(data_train, data_val)
-            free_train_and_val_memory(train_dataset, val_dataset)
-        """
         
         return {
             "trainer": trainer,
             "val_transform": val_dataset.transform
         }
-        # return trainer
 
     def test(self,
              test_data,
@@ -262,10 +219,6 @@ def get_van_image_processor_and_config(data_train, dataset_statistics,
     label2id = {label: i for i, label in enumerate(class_labels)}
     id2label = {i: label for label, i in label2id.items()}
 
-    #model_ckpt = "microsoft/swin-tiny-patch4-window7-224"
-    #model_ckpt = "Visual-Attention-Network/van-base"
-    #model_ckpt = "Visual-Attention-Network/van-large"
-    #model_ckpt = "Visual-Attention-Network/van-small"
     model_ckpt = "Visual-Attention-Network/van-tiny"
     
     image_processor = AutoImageProcessor.from_pretrained(model_ckpt)
@@ -283,14 +236,6 @@ def get_van_image_processor_and_config(data_train, dataset_statistics,
     else:
         image_processor.image_mean = dataset_statistics["dataset_means"][obs_input_type]
         image_processor.image_std = dataset_statistics["dataset_std_devs"][obs_input_type]
-
-    # Model without any pre-training
-    """
-    config = VanConfig()
-    model = VanEncodingsForImageClassification(
-        config=config
-    )
-        """
 
     # Model with pre-training
     

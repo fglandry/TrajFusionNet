@@ -1,7 +1,6 @@
 from typing import Optional
 
 import torch
-from torch import nn
 from torchsummary import summary
 from transformers import Trainer, TrainingArguments
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel

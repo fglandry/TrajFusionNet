@@ -16,7 +16,7 @@ from sklearn.metrics import accuracy_score
 from utils.global_variables import get_time_writing_to_disk, set_time_writing_to_disk
 from utils.pose import get_pose_keypoints
 
-# Data utilities
+
 def flip_pose(pose):
     """
     Flips a given pose coordinates
@@ -126,11 +126,7 @@ def get_pose(model_opts,
                     pose.append(set_poses[set_id][vid_id][k])
             else:
                 raise Exception
-                #pose.append([0] * 36)
             
-        # TODO: remove
-        # pose = [[p for i, p in enumerate(skeleton) if i in [0,5,6,11,12,13,18,19,24,25]] for skeleton in pose]
-
         poses_all.append(pose)
     poses_all = np.array(poses_all)
 
@@ -139,59 +135,6 @@ def get_pose(model_opts,
         poses_all = np.expand_dims(poses_all, 2)
 
     return poses_all, feat_shape
-
-def compute_descriptor_features(imp, pose_save_folder, pose_save_path,
-                                compute_hu_moments=False,
-                                compute_hog_features=True,
-                                do_not_keep_in_memory=True,
-                                prev_features=None,
-                                idx_seq=None, 
-                                idx_t=None):
-    expected_descriptor_dim = 6084 # without modalities
-    path_already_exists = os.path.exists(pose_save_path)
-    if path_already_exists:
-        features = open_pickle_file(pose_save_path)
-    else:
-        img_data = open_pickle_file(imp)
-
-        if compute_hu_moments:
-            raise Exception("Not implemented in this repo")
-            features = get_hu_moments(img_data)
-        elif compute_hog_features:
-            raise Exception("Not implemented in this repo")
-            features = get_hog_features(img_data)
-
-    if do_not_keep_in_memory:
-        #if features.shape[0] == expected_descriptor_dim:
-        if not path_already_exists:
-            # Insert all modalities features in array
-            np_arr = np.empty([0])
-            for feat in prev_features:
-                np_arr = np.append(np_arr, feat[idx_seq][idx_t])
-            features = np.append(np_arr, features)
-            save_descriptor_to_disk(pose_save_folder, pose_save_path, features)
-        return pose_save_path, features.shape
-    else:
-        save_descriptor_to_disk(pose_save_folder, pose_save_path, features)
-        return features, features.shape
-
-
-def get_hog_modalities_folder_from_features_path(pose_save_folder):
-    modalities_save_folder = pose_save_folder.replace("hog_descriptor", "hog_modalities")
-    return modalities_save_folder
-
-def get_hog_modalities_path_from_features_path(pose_save_path):
-    modalities_save_path = pose_save_path.replace("hog_descriptor", "hog_modalities")
-    idx = modalities_save_path.index(".pkl")
-    modalities_save_path = modalities_save_path[:idx] + "_all_mod" + modalities_save_path[idx:]
-    return modalities_save_path
-
-def save_descriptor_to_disk(pose_save_folder, pose_save_path, features):
-    # Save the file
-    if not os.path.exists(pose_save_folder):
-        os.makedirs(pose_save_folder)
-    with open(pose_save_path, 'wb') as fid:
-        pickle.dump(features, fid, pickle.HIGHEST_PROTOCOL)
 
 def create_pose(model_opts, img_sequences, bbox_sequences, 
                 ped_ids, save_path, data_type, dataset,
@@ -269,20 +212,7 @@ def create_pose_from_img_path(
         if not generator:
             pose_features = open_pickle_file(pose_save_path)
     else: # calculate features
-        if descriptor_type == "ped_shape_descriptor":
-            pose_features, _ = compute_descriptor_features(
-                imp, pose_save_folder, pose_save_path,
-                compute_hu_moments=True
-            )
-        elif descriptor_type == "hog_descriptor":
-            pose_features, _ = compute_descriptor_features(
-                imp, pose_save_folder, pose_save_path,
-                compute_hog_features=True,
-                do_not_keep_in_memory=do_not_keep_in_memory,
-                prev_features=prev_features,
-                idx_seq=idx_seq, idx_t=idx_t
-            )
-        elif descriptor_type == "pose":
+        if descriptor_type == "pose":
             img_data = cv2.imread(imp, cv2.IMREAD_UNCHANGED)
             # crop bbox from image
             if crop_type == 'bbox':
@@ -297,10 +227,6 @@ def create_pose_from_img_path(
 
             if model_opts["process_input_features"].get("super_resolution"):
                 raise Exception("Not implemented in this repo")
-                # Get super resolution from image before computing pose
-                new_img_features = get_super_resolution(show_image, img_features)
-                #new_img_features = cv2.resize(new_img_features, new_img_features.shape[0:2][::-1]) # needed for some reason
-                new_img_features = cv2.resize(new_img_features, img_features.shape[0:2][::-1])
             else:
                 new_img_features = img_features
 

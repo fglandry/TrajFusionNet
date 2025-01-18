@@ -1,11 +1,9 @@
-import copy
 import time
 import yaml
 import wget
 from utils.utils import *
-from models.base_models import AlexNet, C3DNet, CombinedModelV1Net, CombinedModelV2Net, \
-                               CombinedModelV3Net, convert_to_fcn
-from models.base_models import I3DNet, TransformerNet
+from models.base_models import AlexNet, C3DNet, convert_to_fcn
+from models.base_models import I3DNet
 from tensorflow.keras.layers import Input, Concatenate, Dense
 from tensorflow.keras.layers import GRUCell
 from tensorflow.keras.layers import Dropout, LSTMCell
@@ -26,51 +24,6 @@ from sklearn.preprocessing import StandardScaler
 
 from action_predict import ActionPredict
 from utils.data_load import DataGenerator, get_generator, get_static_context_data
-
-
-class BaseTransformer(ActionPredict):
-    """
-    """
-    def __init__(self,
-                 num_hidden_units=128,
-                 **kwargs):
-        """
-        Class init function
-        Args:
-            num_hidden_units: 
-        """
-        super().__init__(**kwargs)
-        # Network parameters
-        self._mlp_units = num_hidden_units
-
-    def get_model(self, data_params, *args, **kwargs):
-        model_opts = kwargs["model_opts"]
-        network_inputs = []
-        data_sizes = data_params['data_sizes']
-        data_types = data_params['data_types']
-        core_size = len(data_sizes)
-
-        for i in range(core_size):
-            network_inputs.append(Input(shape=data_sizes[i],
-                                        name='input_' + data_types[i]))
-
-        if len(network_inputs) > 1:
-            inputs = Concatenate(axis=2)(network_inputs)
-        else:
-            inputs = network_inputs[0]
-
-        net_model = TransformerNet.build_model(
-            model_opts,
-            inputs,
-            head_size=256,
-            num_heads=4,
-            ff_dim=4,
-            num_transformer_blocks=4,
-            mlp_units=[self._mlp_units],
-            mlp_dropout=0.4,
-            dropout=0.25,
-        )
-        return net_model
 
 
 class SingleRNN(ActionPredict):
@@ -608,20 +561,20 @@ class TwoStreamI3D(ActionPredict):
         #     yaml.dump(results, fid)
         return acc, auc, f1, precision, recall
 
-# weights="weights/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5
+
 class Static(ActionPredict):
     """
     A static model which uses features from the last convolution
     layer and a dense layer to classify
     """
     def __init__(self,
-                 dropout=0.0,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights="weights/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5", # used to be imagenet
-                 num_classes=1,
-                 backbone='vgg16',
-                 global_pooling='avg',
+                 dropout: int = 0.0,
+                 dense_activation: str = 'sigmoid',
+                 freeze_conv_layers: bool = False,
+                 weights: str = "weights/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5",
+                 num_classes: int = 1,
+                 backbone: str = 'vgg16',
+                 global_pooling: str = 'avg',
                  **kwargs):
         """
         Class init function
@@ -646,7 +599,7 @@ class Static(ActionPredict):
         self._conv_models = {'vgg16': vgg16.VGG16, 'resnet50': resnet50.ResNet50, 'alexnet': AlexNet}
         self._backbone = backbone
 
-    def get_data(self, data_type, data_raw, model_opts):
+    def get_data(self, data_type: str, data_raw: dict, model_opts: dict):
         """
         Generates train/test data
         :param data_raw: The sequences received from the dataset interface
@@ -664,16 +617,10 @@ class Static(ActionPredict):
 
         :return: Train/Test data
         """
-        # Stack of 5-10 optical flow. For each  image average results over two
-        # branches and average for all samples from the sequence
-        # single images and stacks of optical flow
-
-        # assert len(model_opts['obs_input_type']) == 1
         self._generator = model_opts.get('generator', True)
         model_opts['normalize_boxes'] = False if not model_opts['model'] in ["VAN", "SmallVAN"] else True
         process = False
         aux_name = '_'.join([self._backbone, 'raw']).strip('_')
-        dataset = model_opts['dataset']
         eratio = model_opts['enlarge_ratio']
 
         data, neg_count, pos_count = self.get_data_sequence(data_type, data_raw, model_opts)
@@ -681,26 +628,13 @@ class Static(ActionPredict):
         feature_type = model_opts['obs_input_type'][0]
 
         assert feature_type in ['local_box', 'local_context', 'scene', 'scene_context', 
-                                'scene_context_with_flow_optical', 
-                                'scene_context_with_flow_optical_v2',
-                                'scene_context_with_flow_optical_v3',
-                                'scene_context_with_flow_optical_v4',
-                                'scene_context_with_flow_optical_v5',
-                                'scene_context_with_flow_optical_v6',
-                                'scene_context_with_segmentation',
-                                'scene_context_with_segmentation_v0',
-                                'scene_context_with_segmentation_v2',
-                                'scene_context_with_segmentation_v3',
-                                'scene_context_with_segmentation_v4',
                                 'scene_context_with_ped_overlays',
                                 'scene_context_with_ped_overlays_previous',
-                                'scene_context_with_ped',
                                 ]
 
         _data_samples = {}
         _data_samples['crossing'] = data['crossing']
         data_type_sizes_dict = {}
-
 
         print('\n#####################################')
         print('Generating {} {}'.format(feature_type, data_type))
@@ -720,56 +654,23 @@ class Static(ActionPredict):
         elif feature_type == 'local_context':
             data_gen_params['crop_type'] = 'context'
             data_gen_params['crop_resize_ratio'] = eratio
-        elif 'with_ped_overlays' in feature_type: # added
+        elif 'with_ped_overlays' in feature_type: 
             data_gen_params['crop_type'] = 'ped_overlays'
-        elif 'with_ped' in feature_type: # added:
+        elif 'with_ped' in feature_type:
             data_gen_params['crop_type'] = 'keep_ped'
-        elif 'scene_context' in feature_type and 'segmentation' not in feature_type: # added
+        elif 'scene_context' in feature_type and 'segmentation' not in feature_type:
             data_gen_params['crop_type'] = 'remove_ped'
 
         _data_samples[feature_type], feat_shape = get_static_context_data(
             self, model_opts, data, data_gen_params, feature_type
         )
-        """
-        # Get some settings from config
-        concatenate_frames = "concatenate_frames" in model_opts and model_opts["concatenate_frames"]["enabled"]
-        add_optical_flow = "flow_optical" in feature_type
-        data_gen_params['concatenate_frames'] = concatenate_frames
-        data_gen_params['feature_type'] = feature_type
-        data_gen_params['is_feature_static'] = True
-
-        # Keep latest element in sequence (model will be run on one frame)
-        if not concatenate_frames and not add_optical_flow:
-            for k, v in data.items():
-                if 'act' not in k:
-                    if len(v.shape) == 3:
-                        data[k] = np.expand_dims(v[:, -1, :], axis=1)
-                    else:
-                        data[k] = np.expand_dims(v[:, -1], axis=-1)  
-        
-        _data_samples[feature_type], feat_shape = self.load_images_crop_and_process(data['image'],
-                                                                      data['box_org'],
-                                                                      data['ped_id'],
-                                                                      **data_gen_params)
-        """
     
         if not self._generator:
             _data_samples[feature_type] = np.squeeze(_data_samples[feature_type])
         data_type_sizes_dict[feature_type] = feat_shape[1:]
 
-        # create the final data file to be returned
+        # create the final data to be returned
         if self._generator:
-            """
-            _data_rgb = (DataGenerator(data=[_data_samples[feature_type]],
-                                   labels=data['crossing'],
-                                   data_sizes=[data_type_sizes_dict[feature_type]],
-                                   process=process,
-                                   global_pooling=self._global_pooling,
-                                   input_type_list=model_opts['obs_input_type'],
-                                   batch_size=model_opts['batch_size'],
-                                   shuffle=data_type != 'test',
-                                   to_fit=data_type != 'test'), _data_samples['crossing'])  # set y to None
-            """
             _data_rgb = get_generator(
                             _data=[_data_samples[feature_type]],
                             data=data,
@@ -2390,158 +2291,14 @@ class PCPA(ActionPredict):
         #plot_model(net_model, to_file='MultiRNN3D_ATT.png')
         return net_model
 
-class VideoMAE(ActionPredict):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        """
-        Class init function
-        Args:
-            dropout: Dropout value for fc6-7 of vgg16.
-            dense_activation: Activation of last dense (predictions) layer.
-            freeze_conv_layers: If set true, only fc layers of the networks are trained
-            weights: Pre-trained weights for networks.
-        """
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super(VideoMAE, self).get_data(data_type, data_raw, model_opts)
-
-    # TODO: use keras function to load weights
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        if not os.path.exists(self._weights):
-            weights_url = 'https://github.com/adamcasson/c3d/releases/download/v0.1/sports1M_weights_tf.h5'
-            wget.download(weights_url, self._weights)
-        net_model = C3DNet(freeze_conv_layers=self._freeze_conv_layers,
-                           dropout=self._dropout,
-                           dense_activation=self._dense_activation,
-                           include_top=True,
-                           weights=self._weights)
-        net_model.summary()
-
-        return net_model
-
-class Timesformer(ActionPredict):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        """
-        Class init function
-        Args:
-            dropout: Dropout value for fc6-7 of vgg16.
-            dense_activation: Activation of last dense (predictions) layer.
-            freeze_conv_layers: If set true, only fc layers of the networks are trained
-            weights: Pre-trained weights for networks.
-        """
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super(Timesformer, self).get_data(data_type, data_raw, model_opts)
-
-    # TODO: use keras function to load weights
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        """
-        if not os.path.exists(self._weights):
-            weights_url = 'https://github.com/adamcasson/c3d/releases/download/v0.1/sports1M_weights_tf.h5'
-            wget.download(weights_url, self._weights)
-        net_model = C3DNet(freeze_conv_layers=self._freeze_conv_layers,
-                           dropout=self._dropout,
-                           dense_activation=self._dense_activation,
-                           include_top=True,
-                           weights=self._weights)
-        net_model.summary()
-        """
-
-        return None
-    
-class VisionTransformer(Static):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super().get_data(data_type, data_raw, model_opts)
-
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        return None
     
 class VAN(Static):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
 
     def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
+                 dropout: int = 0.5,
+                 dense_activation: str = 'sigmoid',
+                 freeze_conv_layers: bool = False,
+                 weights: str = 'weights/c3d_sports1M_weights_tf.h5',
                  **kwargs):
         super().__init__(**kwargs)
         # Network parameters
@@ -2551,11 +2308,11 @@ class VAN(Static):
         self._weights = weights
         self._backbone = 'c3d'
 
-    def get_data(self, data_type, data_raw, model_opts,
+    def get_data(self, data_type: str, data_raw: dict, 
+                 model_opts: dict,
                  *args, **kwargs):
 
         assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
 
         model_opts['normalize_boxes'] = False
         model_opts['target_dim'] = (224, 224)
@@ -2564,181 +2321,12 @@ class VAN(Static):
         data = super().get_data(data_type, data_raw, model_opts)
         return data
 
-    def get_model(self, data_params, *args, **kwargs):
+    def get_model(self, *args, **kwargs):
         os.makedirs(os.path.dirname(self._weights), exist_ok=True)
         return None
     
+
 class SmallVAN(VAN, Static):
     def __init__(self,
                  **kwargs):
         super().__init__(**kwargs)
-    
-class HF_Resnet50(Static):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super().get_data(data_type, data_raw, model_opts)
-
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        return None
-    
-class SwinV2(Static):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super().get_data(data_type, data_raw, model_opts)
-
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        return None
-    
-class ConvNextV2(Static):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super().get_data(data_type, data_raw, model_opts)
-
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        return None
-    
-class BEiT(Static):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super().get_data(data_type, data_raw, model_opts)
-
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        return None
-
-class ConvNext_VAN(Static):
-    """ Copied C3D model
-        TODO: some things might need to be changed
-    """
-
-    def __init__(self,
-                 dropout=0.5,
-                 dense_activation='sigmoid',
-                 freeze_conv_layers=False,
-                 weights='weights/c3d_sports1M_weights_tf.h5',
-                 **kwargs):
-        super().__init__(**kwargs)
-        # Network parameters
-        self._dropout = dropout
-        self._dense_activation = dense_activation
-        self._freeze_conv_layers = freeze_conv_layers
-        self._weights = weights
-        self._backbone = 'c3d'
-
-    def get_data(self, data_type, data_raw, model_opts):
-
-        assert len(model_opts['obs_input_type']) == 1
-        # assert model_opts['obs_length'] == 16
-
-        model_opts['normalize_boxes'] = False
-        model_opts['target_dim'] = (224, 224)
-        model_opts['process'] = False
-        model_opts['backbone'] = 'c3d'
-        return super().get_data(data_type, data_raw, model_opts)
-
-    def get_model(self, data_params, *args, **kwargs):
-        os.makedirs(os.path.dirname(self._weights), exist_ok=True)
-        return None

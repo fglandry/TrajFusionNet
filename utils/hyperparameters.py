@@ -50,4 +50,3 @@ class HyperparamsOrchestrator():
             case[self.model][self.submodel][key] = self.params_list[self.current_case_idx][idx]
         self.current_case_idx += 1
         return case
-        

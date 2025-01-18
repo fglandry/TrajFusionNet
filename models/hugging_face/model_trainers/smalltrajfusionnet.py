@@ -10,10 +10,8 @@ from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTr
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
 
-from models.hugging_face.model_trainers.smalltrajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
 from models.hugging_face.model_trainers.smalltrajectorytransformerb import TrajectoryTransformerModel, get_config_for_timeseries_lib as get_config_for_trajectory_classification
-from models.hugging_face.model_trainers.smallvan import VanEncodingsModel, get_van_image_processor_and_config
-from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, normalize_trajectory_data, denormalize_trajectory_data, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig
 from models.hugging_face.utilities import compute_loss, get_class_labels_info, get_device
 from models.hugging_face.utils.create_optimizer import get_optimizer
 from models.custom_layers_pytorch import SelfAttention
@@ -21,6 +19,7 @@ from models.custom_layers_pytorch import SelfAttention
 NET_INNER_DIM = 256
 NET_OUTER_DIM = 40
 DROPOUT = 0.1
+
 
 class SmallTrajFusionNet(HuggingFaceTimeSeriesModel):
     """ Base Transformer with cross attention between modalities
@@ -46,7 +45,6 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesModel):
         timeseries_element = data_train['data'][0][0][0][-1]
         encoder_input_size = timeseries_element.shape[-1]
         seq_len = timeseries_element.shape[-2]
-        context_len = 15 # timeseries_context_element.shape[-1]
         
         # Get model
         hyperparams = hyperparams.get(self.__class__.__name__.lower(), {}) if hyperparams else {}
@@ -106,7 +104,7 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesModel):
         
         initial_weights = copy.deepcopy(model.state_dict())
 
-        #trainer.train()
+        trainer.train()
 
         best_trainer = trainer
         best_scenario_in_second_round = False
@@ -120,9 +118,6 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesModel):
                 model.van_output_embed.bias.zero_()
 
             for i in range(epochs):
-                #if i == 0:
-                #    model.load_state_dict(initial_weights)
-                #    # trainer.model.load_state_dict(initial_weights)
                 
                 optimizer, lr_scheduler = get_optimizer(self, model, args, 
                     train_dataset, val_dataset, data_train, train_opts, warmup_ratio, 
@@ -131,9 +126,6 @@ class SmallTrajFusionNet(HuggingFaceTimeSeriesModel):
                 trainer = self._get_trainer(model, args, train_dataset, 
                                             val_dataset, optimizer, lr_scheduler)
                 trainer.args.num_train_epochs = 1
-                
-                #trainer.optimizer = optimizer
-                #trainer.lr_scheduler = lr_scheduler
 
                 trainer.train()
                 metric = best_trainer.state.best_metric if best_trainer.state.best_metric is not None else 0.0
@@ -219,7 +211,6 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
         self.van_output_size = NET_OUTER_DIM
         self.max_classifier_hidden_size = NET_OUTER_DIM
         self.max_classifier_hidden_size_van = NET_INNER_DIM
-        #self.fc1_neurons = 1 * 3 * self.max_classifier_hidden_size  + 40 # 2 * 40
         self.fc1_neurons = 160
         self.fc2_neurons = 40
         
@@ -235,13 +226,8 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
         self.use_separate_vans = True
         if self.use_separate_vans:
 
-            #image_processor, config = get_van_image_processor_and_config(
-            #    data_train, dataset_statistics
-            #)
-
             pretrained_model = VanModel.from_pretrained(
                 checkpoint1,
-                #config=config,
                 id2label=id2label,
                 label2id=label2id,
                 ignore_mismatched_sizes=True)
@@ -261,7 +247,6 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
             checkpoint = "data/models/jaad/SmallTrajectoryTransformerb/17Nov2024-22h36m59s_SM2b"
         elif self._dataset == "jaad_beh":
             checkpoint = "data/models/jaad/SmallTrajectoryTransformerb/17Nov2024-22h36m59s_SM2b"
-            # checkpoint = "data/models/jaad/SmallTrajectoryTransformerb/19Nov2024-20h27m53s_SM9"
         pretrained_model = TrajectoryTransformerModel.from_pretrained(
             checkpoint,
             config_for_timeseries_lib=config_for_trajectory_predictor,
@@ -316,8 +301,8 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
-            output1_tensor = output1.pooler_output if return_dict else output1 # output[1]
-            van_output = output1_tensor # self.dropout1(output1_tensor)
+            output1_tensor = output1.pooler_output if return_dict else output1
+            van_output = output1_tensor
 
             if add_previous_context:
                 # Get previous context output from VAN
@@ -338,8 +323,6 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
                         self.max_classifier_hidden_size_van)
                 van_output_cat = self.van_output_embed(van_output_cat)
             else:
-                #van_output_cat = torch.cat([van_output_prev, 
-                #                            van_output], dim=1)
                 van_output_cat = self.van_output_embed(van_output)
             
         else:
@@ -349,7 +332,7 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
                 return_dict=return_dict,
             )
             output1_tensor = output1.pooler_output if return_dict else output1 # output[1]
-            van_output_cat = output1_tensor # self.dropout1(output1_tensor)
+            van_output_cat = output1_tensor
 
 
         # ====================================================================================
@@ -376,7 +359,6 @@ class VanillaTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
 
         # Apply fully-connected layers =======================================================
         outputs = self.dropout(nn.ReLU()(self.fc1(x)))
-        # outputs = x
         logits = self.fc2(outputs)
 
         return compute_loss(outputs,
