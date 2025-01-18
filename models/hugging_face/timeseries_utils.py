@@ -9,12 +9,9 @@ from torch.utils.data import Dataset
 from transformers import AutoImageProcessor
 
 from models.hugging_face.image_utils import convert_img_to_format_used_by_transform, get_image_transforms
-
 from models.hugging_face.utilities import compute_huggingface_metrics, compute_huggingface_forecast_metrics
 from models.hugging_face.video_utils import get_video_transforms
 from transformers.trainer_utils import EvalPrediction
-from utils.data_load import DataGenerator
-from utils.utils import open_pickle_file
 
 
 def get_timeseries_datasets(data_train: dict, data_val: Any,
@@ -75,6 +72,7 @@ def get_timeseries_datasets(data_train: dict, data_val: Any,
     }
 
     return train_dataset, val_dataset, val_transforms_dicts
+
 
 class HuggingFaceTimeSeriesModel():
     
@@ -363,9 +361,6 @@ class TorchTimeseriesDataset(Dataset):
             if current_video_id != previous_video_id or current_ped_id != previous_ped_id:
                 continue
             else:
-                #if index - p < olap_res:
-                #    previous_index_same_video = index # use same image
-                #else:
                 previous_index_same_video = p
                 break
         

@@ -2,10 +2,10 @@ import cv2 as cv
 import math
 from operator import itemgetter
 import numpy as np
-import time
 import torch
 
 # from libs.simple_hrnet.SimpleHRNet import SimpleHRNet
+
 
 BODY_PARTS = { "Nose": 0, "Neck": 1, "RShoulder": 2, "RElbow": 3, "RWrist": 4,
                "LShoulder": 5, "LElbow": 6, "LWrist": 7, "RHip": 8, "RKnee": 9,
@@ -13,7 +13,6 @@ BODY_PARTS = { "Nose": 0, "Neck": 1, "RShoulder": 2, "RElbow": 3, "RWrist": 4,
                "LEye": 15, "REar": 16, "LEar": 17, "Background": 18 }
 
 MOST_STABLE_KEYPOINTS = [2, 5, 8, 9, 10, 11, 12, 13]
-#MOST_STABLE_EDGES = [(2,5), (2,8), (5,11), (8,11), (8,9), (11,12), (9,10), (12,13)]
 MOST_STABLE_EDGES = [(0,1), (0,2), (1,5), (2,5), (2,3), (5,6), (3,4), (6,7)]
 
 POSE_PAIRS = [ ["Neck", "RShoulder"], ["Neck", "LShoulder"], ["RShoulder", "RElbow"],
@@ -61,8 +60,6 @@ def get_pose_keypoints(model_opts,
         if model_opts["pose_configs"].get("add_joints_angles_diff"):
             add_joints_angles_diff = True
 
-    #nb_keypoints = len(BODY_PARTS) if not keep_most_stable_keypoints else len(MOST_STABLE_KEYPOINTS)
-    
     photo_height=img.shape[0]
     photo_width=img.shape[1]
 
@@ -89,16 +86,9 @@ def get_pose_keypoints(model_opts,
             cv.ellipse(img, point, (1, 1), 0, 0, 
                        360, (0, 0, 255), cv.FILLED)
         
-            #point = [k for k, v in BODY_PARTS.items() if v == idx][0]
-            #print(point)
-            #print(features[idx])
-            #cv.imwrite(f"/home/francois/MASTER/pose_imgs/ped_output_{str(time.time()).replace('.', '_')}.png", img) 
         edges = MOST_STABLE_EDGES if use_openpose else COCO_V2_MOST_STABLE_EDGES
         for edge in edges:
             cv.line(img, points[edge[0]], points[edge[1]], (0, 0, 255), 1)
-        #cv.imshow("pose_keypoints_img", img)
-        #cv.waitKey(0)
-        cv.imwrite(f"/home/francois/MASTER/pose_imgs/ped_output_{str(time.time()).replace('.', '_')}.png", img) 
 
     if add_distances_between_keypoints:
         features = calculate_distances_between_keypoints(features, points, photo_height, 

@@ -7,59 +7,13 @@ from transformers import TrainingArguments, Trainer, TimesformerConfig
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model, denormalize_trajectory_data
-from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig, TorchTimeseriesDataset
+from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model
+from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig
 from models.hugging_face.utilities import compute_loss, get_device
-from models.hugging_face.utils.create_optimizer import get_optimizer
 from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
-#from libs.time_series_library.models_tsl.TimesNet import Model as VanillaTransformerTSLModel
-#from libs.time_series_library.models_tsl.Nonstationary_Transformer import Model as VanillaTransformerTSLModel
-#from libs.time_series_library.models_tsl.FEDformer import Model as VanillaTransformerTSLModel
-#from libs.time_series_library.models_tsl.Informer import Model as VanillaTransformerTSLModel
-#from libs.time_series_library.models_tsl.Autoformer import Model as VanillaTransformerTSLModel
 
 
 PRED_LEN = 60
-
-def get_config_for_timeseries_lib(encoder_input_size, seq_len,
-                                  hyperparams, pred_len=None):
-
-    if hyperparams:
-        hyperparams = hyperparams["VanillaTransformerForForecast"]
-    
-    # time series lib properties
-    time_series_dict = {
-        "task_name": "short_term_forecast",
-        "pred_len": pred_len if pred_len else PRED_LEN,
-        "output_attention": False, # whether to output attention in encoder; note: not used by vanilla transformer model
-        "enc_in": encoder_input_size, # encoder input size - default value,
-        "d_model": 128, # dimension of model - default value 
-        "embed": "learned", # time features encoding; note: not used in classification task by vanilla transformer model
-        "freq": "h", # freq for time features encoding; note: not used in classification task by vanilla transformer model
-        "dropout": 0.1, # default,
-        "factor": 1, # attn factor; note: not used by vanilla transformer model
-        "n_heads": hyperparams.get("n_heads", 2), # num of heads
-        "d_ff": hyperparams.get("d_ff", 256), # dimension of fcn (or 2048)
-        "activation": "gelu",
-        "e_layers": hyperparams.get("e_layers", 2), # num of encoder layers (or 3)
-        "seq_len": seq_len, # input sequence length
-        "num_class": 40, # number of neurons in last Linear layer at the end of model
-        "dec_in": encoder_input_size, # decoder input size
-        "d_layers": hyperparams.get("d_layers", 2), # num of decoder layers
-        # ---------------------------------------------------------------------------------
-        "label_len": 15, # section shared by encoder and decoder
-        "num_kernels": 6, # Timesnet - for Inception
-        "top_k": 5, # Timesnet - for TimesBlock
-        "moving_avg": 3, # 3, # FEDformer - window size of moving average, default=25
-        "c_out": encoder_input_size,
-        "distil": True, # Informer - whether to use distilling in encoder, using this argument means not using distilling
-        "p_hidden_dims": [128, 128], # Nonstationary transformer - hidden layer dimensions of projector (List)
-        "p_hidden_layers": 2, # Nonstationary transformer - number of hidden layers in projector
-        # "num_kernels": 3, # override - Pyraformer
-    }
-    
-    config_for_timeseries_lib = TimeSeriesLibraryConfig(time_series_dict)
-    return config_for_timeseries_lib
 
 
 class SmallTrajectoryTransformer(HuggingFaceTimeSeriesModel):
@@ -89,11 +43,9 @@ class SmallTrajectoryTransformer(HuggingFaceTimeSeriesModel):
         
         config_for_timeseries_lib = get_config_for_timeseries_lib(encoder_input_size, seq_len, hyperparams)
         config_for_huggingface = TimeSeriesTransformerConfig()
-        # config_for_huggingface.problem_type = "trajectory"
         config_for_huggingface.num_labels = 4
 
         model = VanillaTransformerForForecast(config_for_huggingface, config_for_timeseries_lib)
-                                              # dataset_statistics)
         summary(model)
 
         # Get datasets
@@ -165,8 +117,7 @@ class TrajectoryTransformerModel(TimeSeriesTransformerPreTrainedModel):
     
     def __init__(self,
                  config_for_huggingface,
-                 config_for_timeseries_lib,
-                 # dataset_statistics=None
+                 config_for_timeseries_lib
         ):
         super().__init__(config_for_huggingface)
         self.tsl_transformer = VanillaTransformerTSLModel(config_for_timeseries_lib)    
@@ -195,7 +146,6 @@ class VanillaTransformerForForecast(TimeSeriesTransformerPreTrainedModel):
     def __init__(self,
                  config_for_huggingface,
                  config_for_timeseries_lib=None, 
-                 # dataset_statistics=None
         ):
         super().__init__(config_for_huggingface, config_for_timeseries_lib)
         self._device = get_device()
@@ -209,7 +159,6 @@ class VanillaTransformerForForecast(TimeSeriesTransformerPreTrainedModel):
             if config_for_huggingface.num_labels > 0 else nn.Identity()
 
         self.timeseries_config = config_for_timeseries_lib
-        # self.dataset_statistics = dataset_statistics
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -230,7 +179,6 @@ class VanillaTransformerForForecast(TimeSeriesTransformerPreTrainedModel):
         zero_tensor = labels if labels is not None else normalized_trajectory_values
         dec_inp = torch.zeros_like(
             torch.empty(zero_tensor.shape[0], self.timeseries_config.pred_len, zero_tensor.shape[-1])).float().to(self.device)
-            # zero_tensor[:, -self.timeseries_config.pred_len:, :]).float()
         dec_inp = torch.cat([
             normalized_trajectory_values[:, -self.timeseries_config.label_len:, :], dec_inp], dim=1).float().to(self.device)
 
@@ -239,22 +187,6 @@ class VanillaTransformerForForecast(TimeSeriesTransformerPreTrainedModel):
             normalized_trajectory_values,
             dec_inp
         )
-       
-        # outputs = outputs[:, -self.args.pred_len:, :]
-        # batch_y = labels[:, -self.timeseries_config.pred_len:, :].to(self.device)
-        # logits = self.classifier(outputs)
-
-        # Denormalize data
-        """
-        outputs_denorm = denormalize_trajectory_data(outputs, 
-                                              normalization_type="0_1_scaling",
-                                              dataset_statistics=self.dataset_statistics, 
-                                              device=self.device)
-        labels_denorm = denormalize_trajectory_data(labels, 
-                                              normalization_type="0_1_scaling",
-                                              dataset_statistics=self.dataset_statistics,
-                                              device=self.device)
-        """
 
         if return_logits:
             return outputs
@@ -266,3 +198,43 @@ class VanillaTransformerForForecast(TimeSeriesTransformerPreTrainedModel):
                             return_dict,
                             problem_type="trajectory")
 
+
+def get_config_for_timeseries_lib(encoder_input_size, seq_len,
+                                  hyperparams, pred_len=None):
+
+    if hyperparams:
+        hyperparams = hyperparams["VanillaTransformerForForecast"]
+    
+    # time series lib properties
+    time_series_dict = {
+        "task_name": "short_term_forecast",
+        "pred_len": pred_len if pred_len else PRED_LEN,
+        "output_attention": False, # whether to output attention in encoder; note: not used by vanilla transformer model
+        "enc_in": encoder_input_size, # encoder input size - default value,
+        "d_model": 128, # dimension of model - default value 
+        "embed": "learned", # time features encoding; note: not used in classification task by vanilla transformer model
+        "freq": "h", # freq for time features encoding; note: not used in classification task by vanilla transformer model
+        "dropout": 0.1, # default,
+        "factor": 1, # attn factor; note: not used by vanilla transformer model
+        "n_heads": hyperparams.get("n_heads", 2), # num of heads
+        "d_ff": hyperparams.get("d_ff", 256), # dimension of fcn (or 2048)
+        "activation": "gelu",
+        "e_layers": hyperparams.get("e_layers", 2), # num of encoder layers (or 3)
+        "seq_len": seq_len, # input sequence length
+        "num_class": 40, # number of neurons in last Linear layer at the end of model
+        "dec_in": encoder_input_size, # decoder input size
+        "d_layers": hyperparams.get("d_layers", 2), # num of decoder layers
+        # ---------------------------------------------------------------------------------
+        "label_len": 15, # section shared by encoder and decoder
+        "num_kernels": 6, # Timesnet - for Inception
+        "top_k": 5, # Timesnet - for TimesBlock
+        "moving_avg": 3, # 3, # FEDformer - window size of moving average, default=25
+        "c_out": encoder_input_size,
+        "distil": True, # Informer - whether to use distilling in encoder, using this argument means not using distilling
+        "p_hidden_dims": [128, 128], # Nonstationary transformer - hidden layer dimensions of projector (List)
+        "p_hidden_layers": 2, # Nonstationary transformer - number of hidden layers in projector
+        # "num_kernels": 3, # override - Pyraformer
+    }
+    
+    config_for_timeseries_lib = TimeSeriesLibraryConfig(time_series_dict)
+    return config_for_timeseries_lib

@@ -1,30 +1,7 @@
 import copy
-import time
-import yaml
-import wget
-from utils.utils import *
-from models.base_models import AlexNet, C3DNet, CombinedModelV1Net, CombinedModelV2Net, \
-                               CombinedModelV3Net, convert_to_fcn
-from models.base_models import I3DNet, TransformerNet
-from tensorflow.keras.layers import Input, Concatenate, Dense
-from tensorflow.keras.layers import GRUCell
-from tensorflow.keras.layers import Dropout, LSTMCell
-from tensorflow.keras.utils import plot_model
-from tensorflow.keras.layers import Flatten, Average, Add
-from tensorflow.keras.layers import ConvLSTM2D, Conv2D
-from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.applications import vgg16, resnet50
-from tensorflow.keras.layers import GlobalAveragePooling2D, GlobalMaxPooling2D, Lambda, dot, concatenate, Activation
-from tensorflow.keras import regularizers
-from tensorflow.keras import backend as K
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.metrics import roc_auc_score, roc_curve, precision_recall_curve
-from sklearn.svm import LinearSVC
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 
 from action_predict import ActionPredict
-from utils.data_load import DataGenerator, get_generator
+from utils.utils import *
 
     
 class VanillaTransformer(ActionPredict):
@@ -46,15 +23,15 @@ class VanillaTransformer(ActionPredict):
         self._mlp_units = num_hidden_units
         self._combined_model = True
 
-    def get_data(self, data_type, data_raw, model_opts,
+    def get_data(self, data_type: str, data_raw: dict, 
+                 model_opts: dict,
                  *args, **kwargs):
 
         # Get model opts specific to each sub-model
         self.combined_model_ops = copy.deepcopy(model_opts)
-        self.combined_model_ops.update(model_opts["vanilla_transformer"])
+        #self.combined_model_ops.update(model_opts["vanilla_transformer"])
 
         # Add model-specific parameters
-        # assert self.combined_model_ops['obs_length'] == 16
         self.obs_length = self.combined_model_ops['obs_length']
 
         combined_model_data = super(VanillaTransformer, self).get_data(
@@ -63,7 +40,7 @@ class VanillaTransformer(ActionPredict):
 
         return combined_model_data
 
-    def get_model(self, data_params, model_opts, data, *args, **kwargs):
+    def get_model(self, *args, **kwargs):
         os.makedirs(os.path.dirname(self._weights), exist_ok=True)
         return None
     
@@ -115,7 +92,7 @@ class BaseTransformerModel(ActionPredict):
 
         return combined_model_data
 
-    def get_model(self, data_params, model_opts, data, *args, **kwargs):
+    def get_model(self, *args, **kwargs):
         os.makedirs(os.path.dirname(self._weights), exist_ok=True)
         return None
     

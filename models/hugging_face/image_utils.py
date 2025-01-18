@@ -2,14 +2,13 @@ import os
 import pickle
 from typing import Any
 
-from datasets import load_metric
 from PIL import Image
 import numpy as np
 from scipy.special import softmax
 import torch
 from torch.utils.data import Dataset
 
-from transformers import AutoImageProcessor
+from transformers.trainer_utils import EvalPrediction
 from torchvision.transforms import (CenterCrop, 
                                     Compose, 
                                     Normalize, 
@@ -23,10 +22,10 @@ from models.hugging_face.utilities import compute_huggingface_metrics
 
 class HuggingFaceImageClassificationModel():
     
-    def compute_metrics(self, eval_pred):
+    def compute_metrics(self, eval_pred: EvalPrediction):
         return compute_huggingface_metrics(eval_pred)
 
-    def collate_fn(self, examples):
+    def collate_fn(self, examples: list):
         pixel_values = torch.stack([example["pixel_values"] for example in examples])
         labels = torch.tensor([example["label"] for example in examples])
         if "pixel_values_2" in examples[0]:
@@ -34,59 +33,13 @@ class HuggingFaceImageClassificationModel():
             return {"pixel_values": pixel_values, "pixel_values_2": pixel_values_2, "labels": labels}
         else:   
             return {"pixel_values": pixel_values, "labels": labels}
-
-
-"""
-def get_image_datasets(data_train, data_val, generator, 
-                       img_model_config,
-                       dataset_statistics, 
-                       image_processor=None,
-                       get_dual_dataset=False):
-
-    assert generator
-
-    # Get image processor if not provided
-    if not image_processor:
-        img_proc_ckpt = "Visual-Attention-Network/van-base"
-        image_processor = AutoImageProcessor.from_pretrained(img_proc_ckpt)
-
-    train_img_transform, val_img_transform = \
-        get_image_transforms(image_processor,
-                             num_channels=img_model_config.num_channels,
-                             config=img_model_config)
-    if get_dual_dataset:
-        image_processor_2 = copy.deepcopy(image_processor)
-        obs_input_type = data_train["data_params"]["data_types"][1]
-        image_processor_2.image_mean = dataset_statistics["dataset_means"][obs_input_type]
-        image_processor_2.image_std = dataset_statistics["dataset_std_devs"][obs_input_type]
-        train_img_transform_2, val_img_transform_2 = \
-            get_image_transforms(image_processor_2,
-                                num_channels=4,
-                                config=img_model_config)
-
-    train_dataset = TorchImageDataset(
-        data_train['data'][0], None, 'train', 
-        generator=generator,
-        transform=train_img_transform,
-        dual_transform=train_img_transform_2)
-    val_dataset = TorchImageDataset(
-        data_val, None, 'val', 
-        generator=generator, 
-        transform=val_img_transform,
-        dual_transform=val_img_transform_2)
-    
-    val_transforms_dicts = {
-        "val_img_transform": val_img_transform,
-        "val_img_transform_2": val_img_transform_2
-    }
-
-    return train_dataset, val_dataset, val_transforms_dicts
-"""
+        
 
 class TorchImageDataset(Dataset):
-    def __init__(self, data, targets, data_type, generator=False, 
-                 transform=None, dual_transform=None, image_processor=None, 
-                 num_channels=None, debug=False):
+    def __init__(self, data: Any, targets: Any, data_type: str, 
+                 generator: bool = False, transform: Any = None, 
+                 dual_transform: Any = None, image_processor: Any = None, 
+                 num_channels: int = None, debug: bool = False):
         if not generator:
             self.data = torch.from_numpy(data)
             self.targets = torch.LongTensor(targets)
@@ -114,12 +67,12 @@ class TorchImageDataset(Dataset):
         self.generator = generator
         self.debug = debug
 
-    def _get_image_item(self, index, dual_img=False):
+    def _get_image_item(self, index: int, dual_img: bool = False):
         return get_image_item(index, self.data, self.data_type, self.generator,
                               dual_transform=self.dual_transform, 
                               dual_img=dual_img)
     
-    def __getitem__(self, index):
+    def __getitem__(self, index: int):
         item = self._get_image_item(index)
         if self.transform:
             item = self.transform(item)
@@ -142,13 +95,17 @@ class TorchImageDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-def get_image_item(index, data, data_type, generator, 
-                   dual_transform=None, dual_img=False, debug=False):
+
+def get_image_item(index: int, data: Any, data_type: str, 
+                   generator: bool, 
+                   dual_transform: Any = None, 
+                   dual_img: bool = False, 
+                   debug: bool = False):
     if not generator:
         item = data[index].permute(3, 0, 1, 2)
     else:
         # data is of type DataGenerator
-        if data_type=='test' and not dual_transform: # todo: verify
+        if data_type=='test' and not dual_transform:
             item = data[index]
         else:
             item = data[index][0]
@@ -156,7 +113,6 @@ def get_image_item(index, data, data_type, generator,
             item = item[0] if not dual_img else item[1]
 
         item = np.asarray(item)
-        #cv2.imwrite(f"/home/francois/MASTER/sem_imgs/sem_output_{str(time.time()).replace('.', '_')}.png", np.squeeze(item))
         item = np.squeeze(item)
     
     return convert_img_to_format_used_by_transform(item, debug)
@@ -176,7 +132,7 @@ def convert_img_to_format_used_by_transform(item: np.ndarray, debug: bool):
     return x
 
 def get_image_transforms(image_processor: Any, 
-                         num_channels: int =3, 
+                         num_channels: int = 3, 
                          dataset_statistics: dict = None, 
                          modality=None):
 
@@ -266,9 +222,7 @@ def test_image_based_model(
         logits = trainer_predictions[0]
         probs = softmax(logits, axis=1)
         probs = probs[:,1]
-        #preds = np.where(probs > 0.5, 1, 0)
         preds = np.expand_dims(probs, axis=1)
-        #targets = np.squeeze(test_data[1])
         targets = test_data[1]
 
         with open(os.path.join(model_path["saved_files_path"], 'predictions.pkl'), 'wb') as picklefile:
