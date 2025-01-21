@@ -2,7 +2,7 @@ model_opts:
   model: SmallTrajFusionNet
   apply_class_weights: True
   generator: True
-  obs_input_type: [scene_context_with_ped_overlays,
+  obs_input_type: [scene_context_with_ped_overlays_combined,
                    box, veh_speed]
   frameworks:
     pytorch: True
@@ -12,7 +12,6 @@ model_opts:
     enabled: True
     indexes_to_stack: [1,2]
     static_features_indexes: []
-  normalize_boxes: True
 exp_opts:
   datasets: [pie]
   batch_size: [16]

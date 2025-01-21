@@ -380,19 +380,19 @@ def train_submodels(dataset: str,
     # Train encoder transformer
     enc_tf_path = run_and_capture_model_path(
         ["python3", "train_test.py", "-c", "config_files/TrajectoryTransformerb.yaml", 
-         "-d", dataset])
+         "-d", dataset, "-j", submodels_paths['traj_tf_path']])
 
     # VAM module ===============================================================
     
     # Train VAN with image context at time t and predicted trajectory overlays
     van_path = run_and_capture_model_path(
         ["python3", "train_test.py", "-c", "config_files/VAN.yaml", 
-         "-d", dataset])
+         "-d", dataset, "-j", submodels_paths['traj_tf_path']])
     
     # Train VAN with image context at time t-15 and observed trajectory overlays
     van_prev_path = run_and_capture_model_path(
         ["python3", "train_test.py", "-c", "config_files/VAN_previous.yaml", 
-         "-d", dataset])
+         "-d", dataset, "-j", submodels_paths['traj_tf_path']])
     
     submodels_paths.update({
         "enc_tf_path": enc_tf_path,

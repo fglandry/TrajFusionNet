@@ -630,6 +630,7 @@ class Static(ActionPredict):
         assert feature_type in ['local_box', 'local_context', 'scene', 'scene_context', 
                                 'scene_context_with_ped_overlays',
                                 'scene_context_with_ped_overlays_previous',
+                                'scene_context_with_ped_overlays_combined'
                                 ]
 
         _data_samples = {}

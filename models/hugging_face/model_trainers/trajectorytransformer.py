@@ -232,12 +232,16 @@ class TrajectoryTransformerModel(TimeSeriesTransformerPreTrainedModel):
 
 
 def load_pretrained_trajectory_transformer(dataset_name: str,
-                                           submodels_paths=None):
+                                           submodels_paths=None,
+                                           traj_model_path_override: str = None):
     config_for_trajectory_predictor = get_config_for_timeseries_lib(
         encoder_input_size=5, seq_len=15, hyperparams={}, pred_len=60)
-    if submodels_paths:
+    if traj_model_path_override:
+        checkpoint = traj_model_path_override
+    elif submodels_paths:
         checkpoint = submodels_paths["traj_tf_path"]
     else:
+        raise Exception()
         if dataset_name in ["pie", "combined"]:
             #checkpoint = "data/models/pie/TrajectoryTransformer/09Jan2025-08h21m06s"
             #checkpoint = "data/models/pie/TrajectoryTransformer/08Jan2025-12h01m11s"

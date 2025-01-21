@@ -1258,12 +1258,13 @@ class ActionPredict(object):
         model_folder_name = time.strftime("%d%b%Y-%Hh%Mm%Ss")
         path_params = {'save_folder': os.path.join(self.__class__.__name__, model_folder_name),
                        'save_root_folder': 'data/models/',
-                       'dataset': model_opts['dataset']}
+                       'dataset': model_opts['dataset_full']}
         model_path, hg_model_path = get_path(**path_params, file_name='model.h5')
 
         if train_end_to_end:
             submodels_paths = self.train_trajectory_pred_tf_first(
-                dataset=model_opts["dataset_full"])
+                dataset=model_opts["dataset_full"],
+                model=model_opts["model"])
         else:
             submodels_paths = None
 
@@ -1444,7 +1445,7 @@ class ActionPredict(object):
 
         return acc, auc, f1, precision, recall
 
-    def train_trajectory_pred_tf_first(self, dataset: str):
+    def train_trajectory_pred_tf_first(self, dataset: str, model: str):
         """ The trajectory prediction transformer needs to be trained first
             so that it can later be used for predicting future pedestrian 
             bounding boxes, which will then be used as overlays on context scene 
@@ -1452,9 +1453,14 @@ class ActionPredict(object):
         """
 
         # Train trajectory prediction encoder-decoder transformer
-        traj_tf_path = run_and_capture_model_path(
-            ["python3", "train_test.py", "-c", "config_files/TrajectoryTransformer.yaml", 
-            "-d", dataset, "-s", "trajectory"])
+        if "Small" in model:
+            traj_tf_path = run_and_capture_model_path(
+                ["python3", "train_test.py", "-c", "config_files/SmallTrajectoryTransformer.yaml", 
+                "-d", dataset, "-s", "trajectory"])
+        else:
+            traj_tf_path = run_and_capture_model_path(
+                ["python3", "train_test.py", "-c", "config_files/TrajectoryTransformer.yaml", 
+                "-d", dataset, "-s", "trajectory"])
         
         submodels_paths = {
             "traj_tf_path": traj_tf_path

@@ -17,7 +17,7 @@ from utils.global_variables import get_time_writing_to_disk
 from utils.hyperparameters import HyperparamsOrchestrator
 from utils.utils import IndentedDumper
 
-SEED = 0
+SEED = 42
 
 
 def write_to_yaml(yaml_path=None, data=None):
@@ -46,7 +46,8 @@ def action_prediction(model_name: str):
 
 def run(config_file: str = None,
         dataset_override: str = None,
-        seq_type_override: str = None,  
+        seq_type_override: str = None,
+        traj_model_path_override: str = None,
         test_only: bool = False,
         train_end_to_end: bool = False,
         free_memory: bool = True, 
@@ -62,6 +63,8 @@ def run(config_file: str = None,
                                 (pie, jaad_all, or jaad_beh)
         seq_type_override [str]: if specified, overrides the seq_type specified in the config file
                                  (trajectory or crossing)
+        traj_model_path_override [str]: if specified, overrides the checkpoint hardcoded
+                                        in (small)trajectorytransformer.py
         test_only [bool]: if True, only inference will be performed (no training)
         train_end_to_end [bool]: if True, all modules in the network will be trained (see modular
                                  training section in the paper)
@@ -103,6 +106,7 @@ def run(config_file: str = None,
         configs['model_opts']['overlap'] = 0.6 if 'pie' in dataset else 0.8
         configs['model_opts']['dataset'] = dataset.split('_')[0]
         configs['model_opts']['dataset_full'] = dataset
+        configs['model_opts']['traj_model_path_override'] = traj_model_path_override if traj_model_path_override else ""
         configs['train_opts']['batch_size'] = model_configs['exp_opts']['batch_size'][dataset_idx]
         configs['train_opts']['lr'] = model_configs['exp_opts']['lr'][dataset_idx]
         configs['train_opts']['epochs'] = model_configs['exp_opts']['epochs'][dataset_idx]
@@ -271,8 +275,9 @@ def set_global_determinism(seed=SEED):
 if __name__ == '__main__':
     try:
         opts, args = getopt.getopt(sys.argv[1:], 
-                                   'hc:d:s:', ['help', 'config_file', 'dataset', 'seq_type',
-                                               'test_only', 'train_end_to_end'])
+                                   'hc:d:s:j:', ['help', 'config_file', 'dataset', 
+                                                 'seq_type', 'traj_model_path',
+                                                 'test_only', 'train_end_to_end'])
     except getopt.GetoptError as err:
         print(str(err))
         usage()
@@ -282,7 +287,7 @@ if __name__ == '__main__':
 
     config_file = None
     model_name = None
-    dataset, seq_type = None, None
+    dataset, seq_type, traj_model_path = None, None, None
     test_only, train_end_to_end = False, False
 
     for o, a in opts:
@@ -295,6 +300,8 @@ if __name__ == '__main__':
             dataset = a
         elif o in ["-s", "--seq_type"]:
             seq_type = a
+        elif o in ["-j", "--traj_model_path"]:
+            traj_model_path = a
         elif o in ["--test_only"]:
             test_only = True
         elif o in ["--train_end_to_end"]:
@@ -311,6 +318,7 @@ if __name__ == '__main__':
         test_only=test_only,
         train_end_to_end=train_end_to_end,
         dataset_override=dataset,
-        seq_type_override=seq_type
+        seq_type_override=seq_type,
+        traj_model_path_override=traj_model_path
     )
     print(f"Model saved under: {saved_files_path}")

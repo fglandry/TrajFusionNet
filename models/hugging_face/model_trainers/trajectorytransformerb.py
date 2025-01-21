@@ -62,7 +62,8 @@ class TrajectoryTransformerb(HuggingFaceTimeSeriesModel):
 
         model = EncoderTransformerForClassification(
             config_for_huggingface, config_for_timeseries_lib,
-            dataset_name=kwargs["model_opts"]["dataset_full"]
+            dataset_name=kwargs["model_opts"]["dataset_full"],
+            model_opts=kwargs["model_opts"]
         )
         summary(model)
 
@@ -145,7 +146,8 @@ class EncoderTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
     def __init__(self,
                  config_for_huggingface: TimeSeriesTransformerConfig,
                  config_for_timeseries_lib: dict = None,
-                 dataset_name: str = None
+                 dataset_name: str = None,
+                 model_opts: dict = None
         ):
         super().__init__(config_for_huggingface, config_for_timeseries_lib)
         self._device = get_device()
@@ -153,7 +155,8 @@ class EncoderTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
         self.timeseries_config = config_for_timeseries_lib
 
         self.transformer = EncoderTransformer(config_for_huggingface, config_for_timeseries_lib,
-                                              dataset_name=dataset_name)
+                                              dataset_name=dataset_name,
+                                              model_opts=model_opts)
 
         classifier_hidden_size = config_for_timeseries_lib.num_class # number of neurons in last linear layer at the end of model
         self.classifier = nn.Linear(
@@ -209,16 +212,19 @@ class EncoderTransformer(TimeSeriesTransformerPreTrainedModel):
                  config_for_huggingface: TimeSeriesTransformerConfig,
                  config_for_timeseries_lib: dict,
                  dataset_name: str = None,
-                 submodels_paths: dict = None
+                 submodels_paths: dict = None,
+                 model_opts: dict = None
         ):
         super().__init__(config_for_huggingface)
+        model_opts = model_opts if model_opts else {}
         self._dataset = dataset_name
         self._device = get_device()
 
         self.tsl_transformer = VanillaTransformerTSLModel(config_for_timeseries_lib)
 
         self.traj_TF = load_pretrained_trajectory_transformer(dataset_name,
-                                                              submodels_paths=submodels_paths)
+                                                              submodels_paths=submodels_paths,
+                                                              traj_model_path_override=model_opts.get("traj_model_path_override"))
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -278,6 +284,7 @@ def load_pretrained_encoder_transformer(dataset_name: str,
     if submodels_paths:
         checkpoint = submodels_paths["enc_tf_path"]
     else:
+        raise Exception()
         if dataset_name in ["pie", "combined"]:
             #checkpoint = "data/models/pie/TrajectoryTransformerb/09Jan2025-09h20m47s"
             #checkpoint = "data/models/pie/TrajectoryTransformerb/08Jan2025-12h53m15s"
