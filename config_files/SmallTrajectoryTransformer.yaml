@@ -7,11 +7,10 @@ model_opts:
     pytorch: True
     hugging_faces: True
     multi-gpu: False
-  process_input_features: 
+  process_input_features:
     enabled: True
     indexes_to_stack: [0, 1]
     static_features_indexes: []
-  normalize_boxes: True
 exp_opts:
   datasets: [pie]
   batch_size: [64]

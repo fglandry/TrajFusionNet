@@ -11,7 +11,6 @@ model_opts:
     enabled: True
     indexes_to_stack: [0, 1]
     static_features_indexes: []
-  normalize_boxes: True
 exp_opts:
   datasets: [jaad_beh]
   batch_size: [64]

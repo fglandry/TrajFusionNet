@@ -1,13 +1,13 @@
 model_opts:
   model: SmallVAN
-  obs_input_type: [scene_context_with_ped_overlays]
+  obs_input_type: [scene_context_with_ped_overlays_combined]
   apply_class_weights: True
   generator: True
   frameworks:
     pytorch: True
     hugging_faces: True
     multi-gpu: False
-  process_input_features: 
+  process_input_features:
     enabled: True
     static_features_indexes: [0]
 exp_opts:

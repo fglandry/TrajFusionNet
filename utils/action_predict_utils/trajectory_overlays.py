@@ -2,7 +2,6 @@
 import numpy as np
 import torch
 
-from models.hugging_face.model_trainers.trajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
 from models.hugging_face.timeseries_utils import denormalize_trajectory_data, normalize_trajectory_data
 from models.hugging_face.utils.semantic_segmentation import ade_palette
 from utils.dataset_statistics import calculate_stats_for_trajectory_data
@@ -20,6 +19,7 @@ class TrajectoryOverlays(metaclass=Singleton):
 
         self._dataset = model_opts["dataset_full"]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        traj_model_path_override = model_opts.get("traj_model_path_override")
 
         # Get dataset statistics
         self.dataset_statistics = {
@@ -32,11 +32,20 @@ class TrajectoryOverlays(metaclass=Singleton):
             self.dataset_statistics, model_opts,
             include_labels=True, 
             use_precomputed_values=True)
+        
+        if "Small" in model_opts["model"]:
+            from models.hugging_face.model_trainers.smalltrajectorytransformer import \
+                VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
+        else:
+            from models.hugging_face.model_trainers.trajectorytransformer import \
+                VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
 
         # Get pretrained trajectory predictor -------------------------------------------
         config_for_trajectory_predictor = get_config_for_trajectory_pred(
             encoder_input_size=5, seq_len=15, hyperparams={}, pred_len=60)
-        if submodels_paths:
+        if traj_model_path_override:
+            checkpoint = traj_model_path_override
+        elif submodels_paths:
             checkpoint = submodels_paths["traj_tf_path"]
         else:
             if self._dataset in ["pie", "combined"]:
@@ -46,6 +55,7 @@ class TrajectoryOverlays(metaclass=Singleton):
             elif self._dataset == "jaad_beh":
                 #checkpoint = "data/models/jaad/TrajectoryTransformer/20Dec2024-14h24m55s_BE26"
                 checkpoint = "data/models/jaad/TrajectoryTransformer/20Nov2024-10h50m14s_TE25"
+            raise Exception()
         pretrained_model = VanillaTransformerForForecast.from_pretrained(
             checkpoint,
             config_for_timeseries_lib=config_for_trajectory_predictor,
@@ -109,16 +119,17 @@ class TrajectoryOverlays(metaclass=Singleton):
         absolute_pred_coords = np.concatenate([absolute_pred_coords, 
                                                np.expand_dims(denormalized[:,-1], 1)], axis=1)
 
-        if feature_type == "scene_context_with_ped_overlays_previous":
+        if feature_type == "scene_context_with_ped_overlays_previous" or \
+            feature_type == "scene_context_with_ped_overlays_combined":
             # Add observed bounding boxes as overlays on image (first image in sequence)
-            #color_idx = 0
             for idx, coords in enumerate(bbox_sequence):
                 if idx == 0 or ((idx+1) % 5 == 0): # add first bbox and then every 5th
                     b_org = list(map(int, coords[0:4])).copy()
                     img_features[b_org[1]:b_org[3], b_org[0]:b_org[2], 0:2] = \
                         np.array(ade_palette()[idx])[0:2]
 
-        else:
+        if feature_type == "scene_context_with_ped_overlays" or \
+            feature_type == "scene_context_with_ped_overlays_combined":
             # Add predicted bounding boxes as overlays on image (last image in sequence)
             for idx, coords in enumerate(absolute_pred_coords):
 

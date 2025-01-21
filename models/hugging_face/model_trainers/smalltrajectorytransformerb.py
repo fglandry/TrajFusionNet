@@ -1,17 +1,17 @@
-from typing import Optional, Tuple, Union
+from typing import Optional
 
 import torch
 from torch import nn
 from torchsummary import summary
-from transformers import TrainingArguments, Trainer, TimesformerConfig
+from transformers import TrainingArguments, Trainer
 from transformers import TimeSeriesTransformerConfig, TimeSeriesTransformerPreTrainedModel
-from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 
-from models.hugging_face.model_trainers.smalltrajectorytransformer import VanillaTransformerForForecast, get_config_for_timeseries_lib as get_config_for_trajectory_pred
+from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
+from models.hugging_face.model_trainers.smalltrajectorytransformer import load_pretrained_trajectory_transformer
 from models.hugging_face.timeseries_utils import get_timeseries_datasets, test_time_series_based_model
 from models.hugging_face.timeseries_utils import HuggingFaceTimeSeriesModel, TimeSeriesLibraryConfig
 from models.hugging_face.utilities import compute_loss, get_device
-from libs.time_series_library.models_tsl.Transformer import Model as VanillaTransformerTSLModel
+from utils.data_load import DataGenerator
 
 PRED_LEN = 60
 
@@ -19,47 +19,60 @@ PRED_LEN = 60
 class SmallTrajectoryTransformerb(HuggingFaceTimeSeriesModel):
 
     def train(self,
-              data_train, 
-              data_val,
-              batch_size, 
-              epochs,
-              model_path,  
-              generator=False,
-              train_opts=None,
-              hyperparams=None,
-              dataset_statistics=None,
-              class_w=None,
+              data_train: dict,  
+              data_val: DataGenerator,
+              batch_size: int,
+              epochs: int,
+              model_path: str,   
+              generator: bool = False,
+              train_opts: dict = None,
+              dataset_statistics: dict = None,
+              hyperparams: dict = None,
+              test_only: bool = False,
               *args, **kwargs):
-        print("Starting model loading for model Trajectory Transformer ===========================")
+        """ Train model
+        Args:
+            data_train [dict]: training data (data_train['data'][0] contains the generator)
+            data_val [DataGenerator]: validation data
+            model_path [str]: path where the model will be saved
+            train_opts [str]: training options (includes learning rate)
+            dataset_statistics [dict]: contains dataset statistics such as avg / std dev per feature
+            hyperparams [dict]: hyperparameters to change during training
+            test_only [bool]: is set to True, model will not be trained, only tested
+        """
 
-        # Get parameters used by time series library model
-        seq_len = 15 + PRED_LEN
+        if test_only:
+            raise Exception("Testing only is not supported for SmallTrajectoryTransformerb")
         
+        print("Starting model loading for model Small Trajectory Transformer Encoder ======================")
+
+        # Get parameters to be used by TSLib library
+        data_element = data_train['data'][0][0][0][0]
+        encoder_input_size = data_element.shape[-1]
+        seq_len = data_element.shape[-2] + PRED_LEN # 75
+        
+        # Get hyperparameters if specified for training run
         hyperparams = hyperparams.get(self.__class__.__name__.lower(), {}) if hyperparams else {}
-        hyperparam_vals = hyperparams["VanillaTransformerForForecastClassification"] if hyperparams else {}
+        hyperparam_vals = hyperparams["EncoderTransformerForClassification"] if hyperparams else {}
         lr = hyperparam_vals.get("lr", train_opts["lr"])
         batch_size = hyperparam_vals.get("batch_size", batch_size)
         epochs = hyperparam_vals.get("epochs", epochs)
         
         config_for_timeseries_lib = get_config_for_timeseries_lib(
-            5, seq_len, hyperparams)
+            encoder_input_size, seq_len, hyperparams)
         config_for_huggingface = TimeSeriesTransformerConfig()
-
         self.num_labels = config_for_huggingface.num_labels
 
-        model = VanillaTransformerForForecastClassification(
+        model = EncoderTransformerForClassification(
             config_for_huggingface, config_for_timeseries_lib,
-            config_for_abs_timeseries=None,
-            class_w=class_w,
-            dataset_statistics=dataset_statistics,
-            dataset_name=kwargs["model_opts"]["dataset_full"]
+            dataset_name=kwargs["model_opts"]["dataset_full"],
+            model_opts=kwargs["model_opts"]
         )
         summary(model)
 
         # Get datasets
-        video_model_config = TimesformerConfig()
         train_dataset, val_dataset, val_transforms_dicts = get_timeseries_datasets(
-            data_train, data_val, model, generator, video_model_config,
+            data_train, data_val, model, generator, None,
             get_image_transform=False, img_model_config=None,
             dataset_statistics=dataset_statistics)
 
@@ -77,7 +90,7 @@ class SmallTrajectoryTransformerb(HuggingFaceTimeSeriesModel):
             load_best_model_at_end=True,
             metric_for_best_model="auc",
             push_to_hub=False,
-            max_steps=-1, # added
+            max_steps=-1,
         )
 
         trainer = Trainer(
@@ -91,8 +104,8 @@ class SmallTrajectoryTransformerb(HuggingFaceTimeSeriesModel):
         )
 
         # Train model
-        print("Starting training of model Vanilla Transformer ===========================")
-        train_results = trainer.train()
+        print("Starting training of model Small Trajectory Transformer Classifier ===========================")
+        trainer.train()
 
         return {
             "trainer": trainer,
@@ -100,184 +113,81 @@ class SmallTrajectoryTransformerb(HuggingFaceTimeSeriesModel):
         }
 
     def test(self,
-             test_data,
-             training_result,
-             model_path,
+             test_data: tuple,
+             training_result: dict,
+             model_info: dict,
              *args,
-             generator=False,
+             generator: bool = False,
              **kwargs):
+        """ Test model
+        Args:
+            test_data [tuple]: tuple containing data (index 0) and targets (index 1)
+            training_result [dict]: dictionary containing training results
+            model_info [dict]: dict containing model info such as saved path and transforms
+            dataset_name [str]: name of dataset
+            generator [bool]: if set to true, input data is provided in a generator
+        """
         
-        print("Starting inference using trained model Vanilla Transformer ===========================")
+        print("Starting inference using trained model Trajectory Transformer Classifier ===========================")
 
         return test_time_series_based_model(
             test_data,
             training_result,
-            model_path,
+            model_info,
             generator
         )
 
 
-class TrajectoryTransformerModel(TimeSeriesTransformerPreTrainedModel):
-    
-    base_model_prefix = "transformer" # needs to be a class property
-    
+class EncoderTransformerForClassification(TimeSeriesTransformerPreTrainedModel):
     def __init__(self,
-                 config_for_huggingface,
-                 config_for_timeseries_lib,
-                 config_for_abs_timeseries = None,
-                 dataset_name=None
-        ):
-        super().__init__(config_for_huggingface)
-        self._dataset = dataset_name
-        self._device = get_device()
-        self.tsl_transformer = VanillaTransformerTSLModel(config_for_timeseries_lib)
-        if config_for_abs_timeseries:
-            self.tsl_transformer_abs = VanillaTransformerTSLModel(config_for_abs_timeseries)
-
-        # Get pretrained trajectory predictor -------------------------------------------
-        config_for_trajectory_predictor = get_config_for_trajectory_pred(
-            encoder_input_size=5, seq_len=15, hyperparams={}, pred_len=60)
-        if self._dataset in ["pie", "combined"]:
-            checkpoint = "data/models/pie/SmallTrajectoryTransformer/17Nov2024-17h45m15s_SM4"
-        elif self._dataset == "jaad_all":
-            checkpoint = "data/models/jaad/SmallTrajectoryTransformer/16Nov2024-22h12m21s_SM1"
-        elif self._dataset == "jaad_beh":
-            checkpoint = "data/models/jaad/SmallTrajectoryTransformer/16Nov2024-22h12m21s_SM1"
-        pretrained_model = VanillaTransformerForForecast.from_pretrained(
-            checkpoint,
-            config_for_timeseries_lib=config_for_trajectory_predictor,
-            ignore_mismatched_sizes=True)
-        
-        # Make all layers untrainable
-        for child in pretrained_model.children():
-            for param in child.parameters():
-                param.requires_grad = False
-        self.traj_TF = pretrained_model
-
-        # Initialize weights and apply final processing
-        self.post_init()
-    
-    def forward(
-        self,
-        trajectory_values,
-        normalized_trajectory_values,
-        *args,
-        **kwargs
-    ):
-        normalized_abs_box_in_values = False
-        pose_in_values = False
-
-        # Trajectory prediction ====================================================
-
-        if pose_in_values:
-            traj_predictor_input = torch.cat((normalized_trajectory_values[:,:,0:4], 
-                                              normalized_trajectory_values[:,:,-1].unsqueeze(2)), 2)
-            normalized_trajectory_values = torch.cat((normalized_trajectory_values[:,:,0:4], 
-                                                      normalized_trajectory_values[:,:,-1].unsqueeze(2)), 2)
-        elif normalized_abs_box_in_values:
-            traj_predictor_input = torch.cat((normalized_trajectory_values[:,:,0:4], 
-                                              normalized_trajectory_values[:,:,-1].unsqueeze(2)), 2)
-            abs_classifier_input = normalized_trajectory_values[:,:,4:8]
-            normalized_trajectory_values = torch.cat((normalized_trajectory_values[:,:,0:4], 
-                                                      normalized_trajectory_values[:,:,-1].unsqueeze(2)), 2)
-        else:
-            traj_predictor_input = normalized_trajectory_values
-        
-        # Predict trajectory between TTE=0 and TTE=60
-        predicted_trajectory = self.traj_TF(
-             normalized_trajectory_values=traj_predictor_input
-        ).logits
-
-        # Crossing prediction ====================================================
-
-        # Add element to indicate predicted vs past trajectory
-
-        extra_dim_vals = torch.zeros((predicted_trajectory.shape[0],          # add 0
-                            predicted_trajectory.shape[1], 1)).to(self._device)
-        predicted_trajectory = torch.cat((predicted_trajectory, extra_dim_vals), 2)
-        extra_dim_vals = torch.ones((normalized_trajectory_values.shape[0],   # add 1
-                            normalized_trajectory_values.shape[1], 1)).to(self._device)
-        trajectory_values = torch.cat((normalized_trajectory_values, extra_dim_vals), 2)
-
-
-
-        # Only keep values found in prediction horizon (last 1 second)
-        predicted_trajectory = torch.cat([trajectory_values,
-                                          predicted_trajectory], dim=1)
-
-        # Get vanilla transformer model output
-        outputs = self.tsl_transformer(
-            x_enc=predicted_trajectory,
-            x_mark_enc=None,
-            x_dec=None,
-            x_mark_dec=None
-        )
-
-        if normalized_abs_box_in_values:
-            # Get abs transformer model output
-            outputs_abs = self.tsl_transformer_abs(
-                x_enc=abs_classifier_input,
-                x_mark_enc=None,
-                x_dec=None,
-                x_mark_dec=None
-            )
-
-            cat_outputs = torch.cat([outputs, 
-                                     outputs_abs], dim=1)
-            return cat_outputs
-
-        return outputs
-        
-
-class VanillaTransformerForForecastClassification(TimeSeriesTransformerPreTrainedModel):
-    def __init__(self,
-                 config_for_huggingface,
-                 config_for_timeseries_lib=None,
-                 config_for_abs_timeseries=None,
-                 class_w=None,
-                 dataset_statistics=None,  
-                 dataset_name=None
+                 config_for_huggingface: TimeSeriesTransformerConfig,
+                 config_for_timeseries_lib: dict = None,
+                 dataset_name: str = None,
+                 model_opts: dict = None
         ):
         super().__init__(config_for_huggingface, config_for_timeseries_lib)
         self._device = get_device()
-        self._dataset = dataset_name
-
-        self.dataset_statistics = dataset_statistics
-        self.class_w = torch.tensor(class_w).to(self._device)
         self.num_labels = config_for_huggingface.num_labels
+        self.timeseries_config = config_for_timeseries_lib
 
-        self.transformer = TrajectoryTransformerModel(config_for_huggingface, config_for_timeseries_lib,
-                                                      config_for_abs_timeseries=config_for_abs_timeseries,
-                                                      dataset_name=self._dataset)
+        self.transformer = EncoderTransformer(config_for_huggingface, config_for_timeseries_lib,
+                                              dataset_name=dataset_name,
+                                              model_opts=model_opts)
 
-        classifier_hidden_size = config_for_timeseries_lib.num_class # number of neurons in last Linear layer at the end of model
+        classifier_hidden_size = config_for_timeseries_lib.num_class # number of neurons in last linear layer at the end of model
         self.classifier = nn.Linear(
             classifier_hidden_size, config_for_huggingface.num_labels) \
             if config_for_huggingface.num_labels > 0 else nn.Identity()
 
-        self.timeseries_config = config_for_timeseries_lib
-
-        self.fc1 = nn.Linear(40, self.num_labels)
+        self.fc1 = nn.Linear(classifier_hidden_size, self.num_labels) # [40, 2]
 
         # Initialize weights and apply final processing
         self.post_init()
 
     def forward(
         self,
-        trajectory_values: Optional[torch.Tensor] = None,
-        normalized_trajectory_values: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
+        trajectory_values: torch.Tensor = None,
+        normalized_trajectory_values: torch.Tensor = None,
+        labels: torch.Tensor = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, ImageClassifierOutputWithNoAttention]:
+        return_dict: Optional[bool] = None
+    ):
+        """ Args:
+        trajectory_values [torch.Tensor]: non-normalized observed trajectory values
+            of shape [batch, seq_len, enc]
+        normalized_trajectory_values [torch.Tensor]: normalized observed trajectory values
+            of shape [batch, seq_len, enc]
+        labels [torch.Tensor]: future target trajectory values of shape [batch, pred_len, enc]
+            (between time t=0 and time t=60)
+        """
 
         assert output_hidden_states is None
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        # Get trajectory transformer model output
+        # Get encoder transformer model output
         outputs = self.transformer(
             trajectory_values,
-            normalized_trajectory_values # predicted_trajectory
+            normalized_trajectory_values
         )
 
         logits = self.fc1(outputs)
@@ -287,17 +197,122 @@ class VanillaTransformerForForecastClassification(TimeSeriesTransformerPreTraine
                             labels,
                             self.config,
                             self.num_labels,
-                            return_dict,
-                            class_w=self.class_w)
+                            return_dict)
 
 
-def get_config_for_timeseries_lib(encoder_input_size, seq_len,
-                                  hyperparams, pred_len=None):
-    encoder_input_size = encoder_input_size + 1
+class EncoderTransformer(TimeSeriesTransformerPreTrainedModel):
+    
+    base_model_prefix = "transformer" # needs to be a class property
+    
+    def __init__(self,
+                 config_for_huggingface: TimeSeriesTransformerConfig,
+                 config_for_timeseries_lib: dict,
+                 dataset_name: str = None,
+                 submodels_paths: dict = None,
+                 model_opts: dict = None
+        ):
+        super().__init__(config_for_huggingface)
+        model_opts = model_opts if model_opts else {}
+        self._dataset = dataset_name
+        self._device = get_device()
+
+        self.tsl_transformer = VanillaTransformerTSLModel(config_for_timeseries_lib)
+
+        self.traj_TF = load_pretrained_trajectory_transformer(dataset_name,
+                                                              submodels_paths=submodels_paths,
+                                                              traj_model_path_override=model_opts.get("traj_model_path_override"))
+
+        # Initialize weights and apply final processing
+        self.post_init()
+    
+    def forward(
+        self,
+        trajectory_values: torch.Tensor,
+        normalized_trajectory_values: torch.Tensor,
+        *args,
+        **kwargs
+    ):
+        """ Args:
+        trajectory_values [torch.Tensor]: non-normalized observed trajectory values
+            of shape [batch, seq_len, enc]
+        normalized_trajectory_values [torch.Tensor]: normalized observed trajectory values
+            of shape [batch, seq_len, enc]
+        """
+
+        # Trajectory prediction ====================================================
+        
+        # Predict trajectory (pedestrian bounding boxes and vehicle speed) between 
+        # t=0 and t=60
+        predicted_trajectory = self.traj_TF(
+             normalized_trajectory_values=normalized_trajectory_values
+        ).logits # [b, 60, 5]
+
+        # Crossing prediction ====================================================
+
+        # Add type identifier to indicate past observed trajectory (add 1) vs 
+        # predicted trajectory (add 0)
+        extra_dim_vals = torch.zeros((predicted_trajectory.shape[0],          # add 0 token
+                                      predicted_trajectory.shape[1], 1)).to(self._device)
+        predicted_trajectory = torch.cat((predicted_trajectory, extra_dim_vals), 2)
+        extra_dim_vals = torch.ones((normalized_trajectory_values.shape[0],   # add 1 token
+                                     normalized_trajectory_values.shape[1], 1)).to(self._device)
+        trajectory_values = torch.cat((normalized_trajectory_values, extra_dim_vals), 2)
+
+        predicted_trajectory = torch.cat([trajectory_values,
+                                          predicted_trajectory], dim=1) # [b, 75, 6]
+
+        # Get vanilla transformer model output
+        outputs = self.tsl_transformer(
+            x_enc=predicted_trajectory,
+            x_mark_enc=None,
+            x_dec=None,
+            x_mark_dec=None
+        )
+
+        return outputs # [b, 40]
+
+
+def load_pretrained_small_encoder(dataset_name: str,
+                                  add_classification_head: bool = True,
+                                  submodels_paths: dict = None):
+    config_for_encoder_tf = get_config_for_timeseries_lib(
+            encoder_input_size=5, seq_len=75, hyperparams={})
+    if submodels_paths:
+        checkpoint = submodels_paths["enc_tf_path"]
+    else:
+        raise Exception()
+    
+    if add_classification_head:
+        pretrained_model = EncoderTransformerForClassification.from_pretrained(
+            checkpoint,
+            config_for_timeseries_lib=config_for_encoder_tf,
+            ignore_mismatched_sizes=True,
+            dataset_name=dataset_name)
+    else:
+        pretrained_model = EncoderTransformer.from_pretrained(
+            checkpoint,
+            config_for_timeseries_lib=config_for_encoder_tf,
+            ignore_mismatched_sizes=True,
+            dataset_name=dataset_name,
+            submodels_paths=submodels_paths)
+    
+    # Make all layers untrainable
+    for child in pretrained_model.children():
+        for param in child.parameters():
+            param.requires_grad = False
+    return pretrained_model
+
+
+def get_config_for_timeseries_lib(encoder_input_size: int, 
+                                  seq_len: int,
+                                  hyperparams: dict, 
+                                  pred_len: int = None):
+    
+    encoder_input_size = encoder_input_size + 1 # plus one to account for type identifiers
     if hyperparams:
-        hyperparams = hyperparams["VanillaTransformerForForecastClassification"]
+        hyperparams = hyperparams["EncoderTransformerForClassification"]
 
-    # time series lib properties
+    # time series lib (TSLib) properties
     time_series_dict = {
         "task_name": "classification",
         "pred_len": pred_len if pred_len else PRED_LEN,
@@ -314,18 +329,8 @@ def get_config_for_timeseries_lib(encoder_input_size, seq_len,
         "e_layers": hyperparams.get("e_layers", 2), # num of encoder layers (or 3)
         "seq_len": seq_len, # input sequence length
         "num_class": 40, # number of neurons in last Linear layer at the end of model
-        # ---------------------------------------------------------------------------------
-        "label_len": 15, # section shared by encoder and decoder
-        "num_kernels": 6, # Timesnet - for Inception
-        "top_k": 5, # Timesnet - for TimesBlock
-        "moving_avg": 3, # FEDformer - window size of moving average, default=25
-        "dec_in": 5, # FEDformer - decoder input size
-        "d_layers": 2, # FEDformer - num of decoder layers
+        "label_len": 15,
         "c_out": 5,
-        "distil": True, # Informer - whether to use distilling in encoder, using this argument means not using distilling
-        "p_hidden_dims": [128, 128], # Nonstationary transformer - hidden layer dimensions of projector (List)
-        "p_hidden_layers": 2, # Nonstationary transformer - number of hidden layers in projector
-        # "num_kernels": 3, # override - Pyraformer
     }
     
     config_for_timeseries_lib = TimeSeriesLibraryConfig(time_series_dict)
