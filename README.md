@@ -1,5 +1,26 @@
-# Pedestrian Crossing Action Prediction Benchmark
+# TrajFusionNet
 
-This is a fork from https://github.com/ykotseruba/PedestrianActionBenchmark
+This repo contains the code for the paper TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations
 
-Benchmark for evaluating pedestrian action prediction algorithms that include code for training, testing and evaluating baseline and state-of-the-art models for pedestrian action prediction on PIE and JAAD datasets.
+TrajFusionNet is a transformer-based model that integrates future pedestrian trajectory and vehicle speed predictions as priors for predicting crossing intention.
+
+TrajFusionNet is composed of two branches: a Sequence Attention Module (SAM) and a Visual Attention Module (VAM). The SAM branch learns from a sequential representation of the observed and predicted pedestrian trajectory and vehicle speed. Complementarily, the VAM branch enables learning from a visual representation of the predicted pedestrian trajectory by overlaying predicted pedestrian bounding boxes onto scene images.
+
+## Set up
+
+Start by creating conda environment:
+
+```bash
+conda create -n trajfusionnet-env python=3.10 pytorch torchvision pytorchvideo pytorch-cuda accelerate tensorflow -c pytorch -c nvidia -c conda-forge
+```
+
+A pytorch-cuda version might need to be specified depending on the NVIDIA driver version.
+
+Then, install the remaining libraries with pip:
+
+```bash
+pip install -r requirements.txt
+```
+
+
+
