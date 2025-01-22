@@ -1,6 +1,6 @@
 # TrajFusionNet
 
-This repo contains the code for the paper TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations
+This repo contains the code for the paper **TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations**
 
 TrajFusionNet is a transformer-based model that integrates future pedestrian trajectory and vehicle speed predictions as priors for predicting crossing intention.
 
@@ -8,13 +8,13 @@ TrajFusionNet is composed of two branches: a Sequence Attention Module (SAM) and
 
 ## Set up
 
-Start by creating conda environment:
+Start by creating a conda environment:
 
 ```bash
 conda create -n trajfusionnet-env python=3.10 pytorch torchvision pytorchvideo pytorch-cuda accelerate tensorflow -c pytorch -c nvidia -c conda-forge
 ```
 
-A pytorch-cuda version might need to be specified depending on the NVIDIA driver version.
+A pytorch-cuda version might need to be specified depending on your NVIDIA driver version.
 
 Then, install the remaining libraries with pip:
 
