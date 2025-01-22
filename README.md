@@ -36,7 +36,14 @@ export PIE_PATH=<pie_dataset_location>
 
 ## Inference
 
-To run model inference, first download the model weights from Google Drive
+To run model inference, first download the model weights from Google Drive.
+
+Then, run:
+```bash
+python3 train_test.py -c config_files/TrajFusionNet.yaml --test_only
+```
+
+The dataset to use and other config parameters can be modified in `config_files/TrajFusionNet.yaml`
 
 ## Training
 
@@ -64,8 +71,6 @@ Depending on your use of the code, please also cite the following:
 * Moulay Akhloufi
 
 Please email efl7126@umoncton.ca (FG Landry) or create an issue if you experience problems with running the code or setting up the environment.
-
-This project was conducted within the Perception, Robotics and Intelligent Machines Laboratory ([PRIME](https://primeai.ca/)) at the Université de Moncton.
 
 ## License
 
