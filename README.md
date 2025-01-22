@@ -1,6 +1,6 @@
 # TrajFusionNet
 
-This repo contains the code for the paper **TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations**
+This repository contains the code for the paper **TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations**
 
 TrajFusionNet is a transformer-based model that integrates future pedestrian trajectory and vehicle speed predictions as priors for predicting crossing intention.
 
@@ -24,5 +24,16 @@ Then, install the remaining libraries with pip:
 pip install -r requirements.txt
 ```
 
+# Downloading the datasets
+
+The PIE and JAAD datasets need to be downloaded and prepared by following instructions provided on their respective GitHub repos: [https://github.com/aras62/PIE](https://github.com/aras62/PIE) and [https://github.com/ykotseruba/JAAD](https://github.com/ykotseruba/JAAD)
+
+Then, export environment variables pointing to the datasets locations:
+```bash
+export JAAD_PATH=<jaad_dataset_location>
+export PIE_PATH=<pie_dataset_location>
+```
+
+# Downloading the model weights
 
 
