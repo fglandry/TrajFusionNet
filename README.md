@@ -26,9 +26,9 @@ pip install -r requirements.txt
 
 ### Downloading the datasets
 
-The PIE and JAAD datasets need to be downloaded and processed by following instructions provided on their respective GitHub repos: [https://github.com/aras62/PIE](https://github.com/aras62/PIE) and [https://github.com/ykotseruba/JAAD](https://github.com/ykotseruba/JAAD)
+The PIE and JAAD datasets need to be downloaded and processed by following instructions provided in the following GitHub repos: [https://github.com/aras62/PIE](https://github.com/aras62/PIE) and [https://github.com/ykotseruba/JAAD](https://github.com/ykotseruba/JAAD)
 
-After the datasets are downloaded, export environment variables pointing to the datasets locations:
+After downloading the datasets, export environment variables pointing to the datasets' locations:
 ```bash
 export JAAD_PATH=<jaad_dataset_location>
 export PIE_PATH=<pie_dataset_location>
