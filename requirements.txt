@@ -1,0 +1,8 @@
+datasets>=2.11.0,<3.0.0
+einops>=0.6.0
+matplotlib>=3.7.1
+opencv-python>=4.7.0
+scikit_learn>=1.1.1,<1.6.0
+torch-summary>=1.4.5
+transformers<=4.30.1
+wget>=3.2

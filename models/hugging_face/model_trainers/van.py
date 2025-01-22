@@ -236,7 +236,6 @@ def load_pretrained_van(dataset_name: str,
         checkpoint1 = submodels_paths["van_path"]
         checkpoint2 = submodels_paths["van_prev_path"]
     else:
-        raise Exception
         label2id, id2label = get_class_labels_info()
         if dataset_name in ["pie", "combined"]:
             checkpoint1 = "data/models/pie/VAN/14Oct2024-00h13m09s_VA10"

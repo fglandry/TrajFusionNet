@@ -241,7 +241,6 @@ def load_pretrained_trajectory_transformer(dataset_name: str,
     elif submodels_paths:
         checkpoint = submodels_paths["traj_tf_path"]
     else:
-        raise Exception()
         if dataset_name in ["pie", "combined"]:
             #checkpoint = "data/models/pie/TrajectoryTransformer/09Jan2025-08h21m06s"
             #checkpoint = "data/models/pie/TrajectoryTransformer/08Jan2025-12h01m11s"

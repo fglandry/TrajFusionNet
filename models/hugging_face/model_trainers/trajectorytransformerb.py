@@ -284,7 +284,6 @@ def load_pretrained_encoder_transformer(dataset_name: str,
     if submodels_paths:
         checkpoint = submodels_paths["enc_tf_path"]
     else:
-        raise Exception()
         if dataset_name in ["pie", "combined"]:
             #checkpoint = "data/models/pie/TrajectoryTransformerb/09Jan2025-09h20m47s"
             #checkpoint = "data/models/pie/TrajectoryTransformerb/08Jan2025-12h53m15s"
