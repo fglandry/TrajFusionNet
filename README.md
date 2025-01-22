@@ -47,7 +47,7 @@ python3 train_test.py -c config_files/TrajFusionNet.yaml --train_end_to_end
 
 ## Citation
 
-If you use any of this code, please cite the following publication:
+If you find this repo useful, please cite the following publication:
 
 TBD
 
@@ -65,7 +65,7 @@ Depending on your use of the code, please also cite the following:
 
 Please email efl7126@umoncton.ca (FG Landry) or create an issue if you experience problems with running the code or setting up the environment.
 
-This project was conducted in collaboration with [Lab Name]
+This project was conducted within the Perception, Robotics and Intelligent Machines Laboratory ([PRIME](https://primeai.ca/)) at the Université de Moncton.
 
 ## License
 
