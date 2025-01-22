@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 The PIE and JAAD datasets need to be downloaded and processed by following instructions provided on their respective GitHub repos: [https://github.com/aras62/PIE](https://github.com/aras62/PIE) and [https://github.com/ykotseruba/JAAD](https://github.com/ykotseruba/JAAD)
 
-Then, export environment variables pointing to the datasets locations:
+After the datasets are downloaded, export environment variables pointing to the datasets locations:
 ```bash
 export JAAD_PATH=<jaad_dataset_location>
 export PIE_PATH=<pie_dataset_location>
@@ -41,7 +41,7 @@ To run model inference, first download the model weights from Google Drive
 ## Training
 
 To train the model, run:
-``bash
+```bash
 python3 train_test.py -c config_files/TrajFusionNet.yaml --train_end_to_end
 ```
 
