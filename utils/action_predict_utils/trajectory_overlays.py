@@ -49,9 +49,9 @@ class TrajectoryOverlays(metaclass=Singleton):
             checkpoint = submodels_paths["traj_tf_path"]
         else:
             if self._dataset in ["pie", "combined"]:
-                checkpoint = "data/models/pie/TrajectoryTransformer/13Aug2024-11h16m29s_TE22"
+                checkpoint = "data/models/pie/TrajectoryTransformer/weights_trajectorytransformer_pie"
             elif self._dataset == "jaad_all":
-                checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
+                checkpoint = "data/models/jaad_all/TrajectoryTransformer/weights_trajectorytransformer_jaadall"
             elif self._dataset == "jaad_beh":
                 checkpoint = "data/models/jaad_beh/TrajectoryTransformer/weights_trajectorytransformer_jaadbeh"
 
