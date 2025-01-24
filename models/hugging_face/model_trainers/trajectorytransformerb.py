@@ -285,18 +285,11 @@ def load_pretrained_encoder_transformer(dataset_name: str,
         checkpoint = submodels_paths["enc_tf_path"]
     else:
         if dataset_name in ["pie", "combined"]:
-            #checkpoint = "data/models/pie/TrajectoryTransformerb/09Jan2025-09h20m47s"
-            #checkpoint = "data/models/pie/TrajectoryTransformerb/08Jan2025-12h53m15s"
-            checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
+            checkpoint = "data/models/pie/TrajectoryTransformerb/weights_trajectorytransformerb_pie"
         elif dataset_name == "jaad_all":
-            checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-12h02m51s_TJ8"
-            #checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
-            #checkpoint = "data/models/pie/TrajectoryTransformerb/06Sep2024-09h18m20s_TJ5"
+            checkpoint = "data/models/jaad_all/TrajectoryTransformerb/weights_trajectorytransformerb_jaadall"
         elif dataset_name == "jaad_beh":
-            #checkpoint = "data/models/jaad/TrajectoryTransformerb/20Dec2024-14h54m11s_BE3"
-            checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-10h36m17s_BE2"
-            #checkpoint = "data/models/jaad/TrajectoryTransformerb/20Nov2024-10h01m55s_BE1"
-            #checkpoint = "data/models/jaad/TrajectoryTransformerb/13Oct2024-15h45m56s_TJ7"
+            checkpoint = "data/models/jaad_beh/TrajectoryTransformerb/weights_trajectorytransformerb_jaadbeh"
 
     if add_classification_head:
         pretrained_model = EncoderTransformerForClassification.from_pretrained(

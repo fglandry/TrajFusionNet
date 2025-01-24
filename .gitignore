@@ -1,7 +1,10 @@
 *pyc
 __pycache__/
 
-data/
+data/*
+!data/
+!data/.keep
+
 data_cache/
 docker/
 weights/

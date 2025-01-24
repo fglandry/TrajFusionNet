@@ -404,11 +404,11 @@ def train_submodels(dataset: str,
 
 def load_pretrained_trajfusionnet(dataset_name: str):
     if dataset_name in ["pie", "combined"]:
-        checkpoint = "data/models/pie/TrajFusionNet/26Dec2024-11h42m23s_PIE1"
+        checkpoint = "data/models/pie/TrajFusionNet/weights_trajfusionnet_pie"
     elif dataset_name == "jaad_all":
-        checkpoint = "data/models/jaad/TrajFusionNet/25Dec2024-15h02m22s_ALL1"
+        checkpoint = "data/models/jaad_all/TrajFusionNet/weights_trajfusionnet_jaadall"
     elif dataset_name == "jaad_beh":
-        checkpoint = "data/models/jaad/TrajFusionNet/25Dec2024-21h50m11s_BEH1"
+        checkpoint = "data/models/jaad_beh/TrajFusionNet/weights_trajfusionnet_jaadbeh"
         
     pretrained_model = TrajFusionNetForClassification.from_pretrained(
         checkpoint,

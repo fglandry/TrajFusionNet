@@ -36,9 +36,14 @@ export PIE_PATH=<pie_dataset_location>
 
 ## Inference
 
-To run model inference, first download the model weights from Google Drive.
+To run model inference, first download the model weights from Google Drive: https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8
 
-Then, run:
+Extract the zip file to the data/ directory by running:
+```bash
+unzip <download_location>/weights.zip -d data/
+```
+
+To perform model inference, execute the following command:
 ```bash
 python3 train_test.py -c config_files/TrajFusionNet.yaml --test_only
 ```
