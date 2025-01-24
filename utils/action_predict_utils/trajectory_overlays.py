@@ -53,9 +53,8 @@ class TrajectoryOverlays(metaclass=Singleton):
             elif self._dataset == "jaad_all":
                 checkpoint = "data/models/jaad/TrajectoryTransformer/05Oct2024-11h30m11s_TE24"
             elif self._dataset == "jaad_beh":
-                #checkpoint = "data/models/jaad/TrajectoryTransformer/20Dec2024-14h24m55s_BE26"
-                checkpoint = "data/models/jaad/TrajectoryTransformer/20Nov2024-10h50m14s_TE25"
-            raise Exception()
+                checkpoint = "data/models/jaad_beh/TrajectoryTransformer/weights_trajectorytransformer_jaadbeh"
+
         pretrained_model = VanillaTransformerForForecast.from_pretrained(
             checkpoint,
             config_for_timeseries_lib=config_for_trajectory_predictor,
