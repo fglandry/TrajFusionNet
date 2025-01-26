@@ -243,13 +243,10 @@ def load_pretrained_trajectory_transformer(dataset_name: str,
     else:
         if dataset_name in ["pie", "combined"]:
             checkpoint = "data/models/pie/TrajectoryTransformer/weights_trajectorytransformer_pie"
-            checkpoint = "data/models/pie/TrajectoryTransformer/25Jan2025-09h39m22s"
         elif dataset_name == "jaad_all":
             checkpoint = "data/models/jaad_all/TrajectoryTransformer/weights_trajectorytransformer_jaadall"
-            checkpoint = "data/models/jaad_all/TrajectoryTransformer/24Jan2025-20h03m54s"
         elif dataset_name == "jaad_beh":
             checkpoint = "data/models/jaad_beh/TrajectoryTransformer/weights_trajectorytransformer_jaadbeh"
-            checkpoint = "data/models/jaad_beh/TrajectoryTransformer/24Jan2025-16h07m39s"
 
     pretrained_model = VanillaTransformerForForecast.from_pretrained(
         checkpoint,
