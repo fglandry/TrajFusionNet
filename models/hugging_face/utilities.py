@@ -10,8 +10,10 @@ from transformers import PreTrainedModel, TimeSeriesTransformerConfig
 from transformers.trainer_utils import EvalPrediction
 from transformers.modeling_outputs import ImageClassifierOutputWithNoAttention
 from transformers.models.timesformer.modeling_timesformer import TimesformerEmbeddings
+from transformers import logging
 
 METRICS_REL_DIR = "models/hugging_face/metrics"
+logging.set_verbosity_error()
 
 
 def get_class_labels_info():

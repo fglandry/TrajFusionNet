@@ -907,9 +907,9 @@ class ActionPredict(object):
             data_gen_params['crop_type'] = 'bbox_resize'
         save_folder_name = feature_type
         if 'optical_flow' not in feature_type:
-            save_folder_name = '_'.join([feature_type, aux_name])
+            save_folder_name = feature_type # '_'.join([feature_type, aux_name])
             if 'local_context' in feature_type or 'surround' in feature_type:
-                save_folder_name = '_'.join([save_folder_name, str(eratio)])
+                save_folder_name = feature_type # '_'.join([save_folder_name, str(eratio)])
         data_gen_params['save_path'], _ = get_path(save_folder=save_folder_name,
                                                    dataset=model_opts["dataset_full"], 
                                                    save_root_folder='data/features')

@@ -240,12 +240,18 @@ def load_pretrained_van(dataset_name: str,
         if dataset_name in ["pie", "combined"]:
             checkpoint1 = "data/models/pie/VAN/weights_van1_pie"
             checkpoint2 = "data/models/pie/VAN/weights_van2_pie"
+            checkpoint1 = "data/models/pie/VAN/25Jan2025-10h49m04s"
+            checkpoint2 = "data/models/pie/VAN/25Jan2025-11h22m47s"
         elif dataset_name == "jaad_all":
             checkpoint1 = "data/models/jaad_all/VAN/weights_van1_jaadall"
             checkpoint2 = "data/models/jaad_all/VAN/weights_van2_jaadall"
+            checkpoint1 = "data/models/jaad_all/VAN/24Jan2025-21h04m40s"
+            checkpoint2 = "data/models/jaad_all/VAN/24Jan2025-22h02m39s"
         elif dataset_name == "jaad_beh":
             checkpoint1 = "data/models/jaad_beh/VAN/weights_van1_jaadbeh"
             checkpoint2 = "data/models/jaad_beh/VAN/weights_van2_jaadbeh"
+            checkpoint1 = "data/models/jaad_beh/VAN/24Jan2025-16h27m18s"
+            checkpoint2 = "data/models/jaad_beh/VAN/24Jan2025-16h41m57s"
     
     checkpoint = checkpoint1 if is_predicted_overlays else checkpoint2
 

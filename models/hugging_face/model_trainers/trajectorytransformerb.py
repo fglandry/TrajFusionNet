@@ -286,10 +286,13 @@ def load_pretrained_encoder_transformer(dataset_name: str,
     else:
         if dataset_name in ["pie", "combined"]:
             checkpoint = "data/models/pie/TrajectoryTransformerb/weights_trajectorytransformerb_pie"
+            checkpoint = "data/models/pie/TrajectoryTransformerb/25Jan2025-10h37m57s"
         elif dataset_name == "jaad_all":
             checkpoint = "data/models/jaad_all/TrajectoryTransformerb/weights_trajectorytransformerb_jaadall"
+            checkpoint = "data/models/jaad_all/TrajectoryTransformerb/24Jan2025-20h46m03s"
         elif dataset_name == "jaad_beh":
             checkpoint = "data/models/jaad_beh/TrajectoryTransformerb/weights_trajectorytransformerb_jaadbeh"
+            checkpoint = "data/models/jaad_beh/TrajectoryTransformerb/24Jan2025-16h22m28s"
 
     if add_classification_head:
         pretrained_model = EncoderTransformerForClassification.from_pretrained(
