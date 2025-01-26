@@ -641,8 +641,11 @@ class Static(ActionPredict):
         print('Generating {} {}'.format(feature_type, data_type))
         print('#####################################')
 
-        save_folder_name = '_'.join(['local_context', aux_name, str(eratio)]) if feature_type == 'local_context' \
-                           else '_'.join([feature_type, aux_name])
+        if feature_type == 'local_context':
+            save_folder_name = feature_type # '_'.join(['local_context', aux_name, str(eratio)])
+        else:
+            save_folder_name = feature_type # '_'.join([feature_type, aux_name])
+
         path_to_features, _ = get_path(save_folder=save_folder_name,
                                        dataset=model_opts["dataset_full"],
                                        save_root_folder='data/features')

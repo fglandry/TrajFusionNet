@@ -13,6 +13,7 @@ from transformers.trainer_pt_utils import get_parameter_names
 
 def override_create_optimizer(trainer_obj: Trainer,
                               disable_vam_branch: bool = False,
+                              nb_epochs_disabled: int = 0,
                               epoch_index: int = 0):
     """ Change implementation of the create_optimizer() method in the Huggingface 
         library's Trainer class to change learning rate in some layers depending
@@ -26,8 +27,9 @@ def override_create_optimizer(trainer_obj: Trainer,
         decay_parameters = [name for name in decay_parameters if "bias" not in name]
         
         if disable_vam_branch:
-            # disable learning in VAM module by setting learning rate to 0 during first epochs
-            if epoch_index <= 15:
+            # disable learning in VAM module by setting learning rate to 0 during the first 
+            # 'nb_epochs_disabled' epochs
+            if epoch_index <= nb_epochs_disabled:
                 params_to_lower_lr = [n for idx, (n, p) in enumerate(opt_model.named_parameters()) if \
                                     (p.requires_grad and "van_output_embed" in n)]
             else:
@@ -90,6 +92,7 @@ def get_optimizer(self, model: Any, args: TrainingArguments,
                   train_dataset: Any, val_dataset: Any,
                   data_train: dict, train_opts: dict,
                   disable_vam_branch: bool = False,
+                  nb_epochs_disabled: int = 0,
                   epoch_index: int = 0):
 
     # A second instance of Trainer is instantiated in order to get the optimizer 
@@ -107,7 +110,8 @@ def get_optimizer(self, model: Any, args: TrainingArguments,
 
     # Get optimizer
     optimizer = override_create_optimizer(trainer,
-                                          disable_vam_branch=disable_vam_branch, 
+                                          disable_vam_branch=disable_vam_branch,
+                                          nb_epochs_disabled=nb_epochs_disabled, 
                                           epoch_index=epoch_index)
     
     num_training_steps = get_number_of_training_steps(data_train, train_opts)

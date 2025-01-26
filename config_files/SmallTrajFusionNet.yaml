@@ -15,5 +15,5 @@ model_opts:
 exp_opts:
   datasets: [pie]
   batch_size: [16]
-  epochs: [15]
+  epochs: [60]
   lr: [5.0e-06]
