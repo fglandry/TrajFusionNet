@@ -2,7 +2,7 @@
 
 This repository contains the code for the paper **TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations**
 
-TrajFusionNet is a transformer-based model that integrates future pedestrian trajectory and vehicle speed predictions as priors for predicting crossing intention.
+TrajFusionNet is a transformer-based model that combines future pedestrian trajectory and vehicle speed predictions as priors for predicting crossing intention.
 
 <img src="docs/architecture.png" alt="TrajFusionNet Architecture" width="500">
 
