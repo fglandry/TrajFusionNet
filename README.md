@@ -72,11 +72,6 @@ Depending on your use of the code, please also cite the following:
 
 ## Authors
 
-* Francois-Guillaume Landry
-* Moulay Akhloufi
-
-Please email efl7126@umoncton.ca (FG Landry) or create an issue if you experience problems with running the code or setting up the environment.
-
 ## License
 
 This project is licensed under the MIT License
