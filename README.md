@@ -6,7 +6,7 @@ TrajFusionNet is a transformer-based model that fuses sequential and visual repr
 
 <img src="docs/architecture.png" alt="TrajFusionNet Architecture" width="500">
 
-TrajFusionNet is composed of two branches: a Sequence Attention Module (SAM) and a Visual Attention Module (VAM). The SAM branch learns from a sequential representation of the observed and predicted pedestrian trajectory and vehicle speed. Complementarily, the VAM branch enables learning from a visual representation of the predicted pedestrian trajectory by overlaying predicted pedestrian bounding boxes onto scene images.
+TrajFusionNet is composed of two branches: a Sequence Attention Module (SAM) and a Visual Attention Module (VAM). The SAM branch learns from a sequential representation of the observed and predicted pedestrian trajectory and vehicle speed. Complementarily, the VAM branch enables learning from a visual representation of the pedestrian trajectory by overlaying observed and predicted pedestrian bounding boxes onto scene images.
 
 ## Set up
 
