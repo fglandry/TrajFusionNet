@@ -61,7 +61,14 @@ python3 train_test.py -c config_files/TrajFusionNet.yaml --train_end_to_end
 
 If you find this repo useful, please cite the following publication:
 
-TBD
+```bibtex
+@article{landry2025trajfusionnet,
+  title={TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations},
+  author={Landry, Francois G and Akhloufi, Moulay A},
+  journal={arXiv preprint arXiv:2508.19866},
+  year={2025}
+}
+```
 
 Depending on your use of the code, please also cite the following:
 
