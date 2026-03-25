@@ -2,11 +2,11 @@
 
 This repository contains the code for the paper **TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations**
 
-TrajFusionNet is a transformer-based model that integrates future pedestrian trajectory and vehicle speed predictions as priors for predicting crossing intention.
+TrajFusionNet is a transformer-based model for predicting pedestrian crossing intention. The approach is based on fusing sequential and visual representations of pedestrian trajectories. The model first predicts future trajectories and then uses both observed and predicted trajectories to condition the intention prediction.
 
 <img src="docs/architecture.png" alt="TrajFusionNet Architecture" width="500">
 
-TrajFusionNet is composed of two branches: a Sequence Attention Module (SAM) and a Visual Attention Module (VAM). The SAM branch learns from a sequential representation of the observed and predicted pedestrian trajectory and vehicle speed. Complementarily, the VAM branch enables learning from a visual representation of the predicted pedestrian trajectory by overlaying predicted pedestrian bounding boxes onto scene images.
+TrajFusionNet is composed of two branches: a Sequence Attention Module (SAM) and a Visual Attention Module (VAM). The SAM branch learns from a sequential representation of the observed and predicted pedestrian trajectory and vehicle speed. Complementarily, the VAM branch enables learning from a visual representation of the pedestrian trajectory in relation to the scene context by overlaying observed and predicted pedestrian bounding boxes onto scene images.
 
 ## Set up
 
@@ -59,7 +59,14 @@ python3 train_test.py -c config_files/TrajFusionNet.yaml --train_end_to_end
 
 If you find this repo useful, please cite the following publication:
 
-TBD
+```bibtex
+@article{landry2025trajfusionnet,
+  title={TrajFusionNet: Pedestrian Crossing Intention Prediction via Fusion of Sequential and Visual Trajectory Representations},
+  author={Landry, Francois G and Akhloufi, Moulay A},
+  journal={arXiv preprint arXiv:2508.19866},
+  year={2025}
+}
+```
 
 Depending on your use of the code, please also cite the following:
 
@@ -69,11 +76,6 @@ Depending on your use of the code, please also cite the following:
 
 
 ## Authors
-
-* Francois-Guillaume Landry
-* Moulay Akhloufi
-
-Please email efl7126@umoncton.ca (FG Landry) or create an issue if you experience problems with running the code or setting up the environment.
 
 ## License
 
