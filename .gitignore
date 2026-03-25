@@ -4,8 +4,7 @@ __pycache__/
 data/*
 !data/
 !data/.keep
-data_/
-data__/
+/data_*/
 
 data_cache/
 docker/
