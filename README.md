@@ -34,7 +34,7 @@ export JAAD_PATH=<jaad_dataset_location>
 export PIE_PATH=<pie_dataset_location>
 ```
 
-The model weights are downloaded automatically from HuggingFace when running the code ([https://huggingface.co/efl7126/trajfusionnet](https://huggingface.co/efl7126/trajfusionnet)). Alternatively, the model weights can be downloaded from Google Drive: [https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8](https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8). You will have to extract the zip file to the data/ directory by running:
+The model weights are downloaded automatically from Hugging Face when running the code ([https://huggingface.co/efl7126/trajfusionnet](https://huggingface.co/efl7126/trajfusionnet)). Alternatively, the model weights can be downloaded from Google Drive: [https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8](https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8). You will have to extract the zip file to the data/ directory by running:
 ```bash
 unzip <download_location>/weights.zip -d data/
 ```
