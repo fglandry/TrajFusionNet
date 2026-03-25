@@ -1,10 +1,12 @@
 import copy
 import getopt
 import os
+from pathlib import Path
 import random
 import sys
 import yaml
 
+from huggingface_hub import snapshot_download
 import numpy as np
 from transformers import set_seed as huggingface_set_seed
 import torch
@@ -74,6 +76,8 @@ def run(config_file: str = None,
     """
     if compute_time_writing_to_disk:
         global TIME_WRITING_TO_DISK
+    load_weights_from_huggingface()
+    
     print(config_file)
     # Read default Config file
     configs_default ='config_files/configs_default.yaml'
@@ -271,6 +275,14 @@ def set_seeds(seed=SEED):
 def set_global_determinism(seed=SEED):
     set_seeds(seed=seed)
 
+def load_weights_from_huggingface():
+    weights_path = Path(__file__).resolve().parent / "data/models"
+    weights_path.mkdir(parents=True, exist_ok=True)
+    snapshot_download(
+        repo_id="efl7126/trajfusionnet",
+        local_dir=weights_path,
+        local_dir_use_symlinks=False
+    )
 
 if __name__ == '__main__':
     try:

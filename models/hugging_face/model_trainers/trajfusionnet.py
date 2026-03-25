@@ -98,7 +98,8 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             load_best_model_at_end=True,
             metric_for_best_model="auc",
             push_to_hub=False,
-            max_steps=-1
+            max_steps=-1,
+            disable_tqdm=False
         )
         
         if test_only:

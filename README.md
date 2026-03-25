@@ -24,7 +24,7 @@ Then, install the remaining libraries with pip:
 pip install -r requirements.txt
 ```
 
-### Downloading the datasets
+### Downloading the datasets and model weights
 
 The PIE and JAAD datasets need to be downloaded and processed by following instructions provided in the following GitHub repos: [https://github.com/aras62/PIE](https://github.com/aras62/PIE) and [https://github.com/ykotseruba/JAAD](https://github.com/ykotseruba/JAAD)
 
@@ -34,14 +34,12 @@ export JAAD_PATH=<jaad_dataset_location>
 export PIE_PATH=<pie_dataset_location>
 ```
 
-## Inference
-
-To run model inference, first download the model weights from Google Drive: https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8
-
-Extract the zip file to the data/ directory by running:
+The model weights are downloaded automatically from HuggingFace when running the code ([https://huggingface.co/efl7126/trajfusionnet](https://huggingface.co/efl7126/trajfusionnet)). Alternatively, the model weights can be downloaded from Google Drive: [https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8](https://drive.google.com/drive/folders/1mXQL5W0LoYa5vZOI_SFIkFkSuyaL0ux8). You will have to extract the zip file to the data/ directory by running:
 ```bash
 unzip <download_location>/weights.zip -d data/
 ```
+
+## Inference
 
 To perform model inference, execute the following command:
 ```bash
@@ -52,7 +50,7 @@ The dataset to use and other config parameters can be modified in `config_files/
 
 ## Training
 
-To train the model, run:
+To train the model end-to-end, run:
 ```bash
 python3 train_test.py -c config_files/TrajFusionNet.yaml --train_end_to_end
 ```
