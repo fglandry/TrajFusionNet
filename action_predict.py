@@ -261,6 +261,7 @@ class ActionPredict(object):
                                     full_veh_speed, i)
                             img_features = cv2.resize(img_features, target_dim)
                             show_image(img_features) if debug else None
+                            #cv2.imwrite("/home/francois/MASTER/TrajFusionNetPlus/data/test/feat_org.png", img_features) #TODO: remove
                         elif 'remove_ped' in crop_type:
                             b_org = list(map(int, b[0:4])).copy()
                             img_features = img_data.copy()
