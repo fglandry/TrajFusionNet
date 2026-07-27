@@ -1,3 +1,5 @@
+import copy
+import os
 from typing import Any, Optional
 
 import torch
@@ -126,6 +128,7 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         
         best_metric = 0
         best_trainer = None
+        best_model_state = None
         half_epochs = round(epochs / 2)
         
         # Run first part of training procedure with the VAM branch disabled for 15 epochs
@@ -137,13 +140,18 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             model.van_output_embed.bias.zero_()
 
         for i in range(half_epochs):
+
+            # create a distinct output directory for this epoch
+            epoch_output_dir = os.path.join(args.output_dir, f"train1_epoch_{i+1}")
+            args_epoch = copy.deepcopy(args)
+            args_epoch.output_dir = epoch_output_dir
             
             # Get custom optimizer to set learning rate to zero in the VAM projection layer
-            optimizer, lr_scheduler = get_optimizer(self, model, args, 
+            optimizer, lr_scheduler = get_optimizer(self, model, args_epoch, 
                 train_dataset, val_dataset, data_train, train_opts,
                 disable_vam_branch=True, nb_epochs_disabled=15, epoch_index=i+1)
             
-            trainer = self._get_trainer(model, args, train_dataset, 
+            trainer = self._get_trainer(model, args_epoch, train_dataset, 
                                         val_dataset, optimizer, lr_scheduler)
             trainer.args.num_train_epochs = 1
             
@@ -152,8 +160,9 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
             if trainer.state.best_metric > best_metric:
                 best_trainer = trainer
                 best_metric = trainer.state.best_metric
+                best_model_state = copy.deepcopy(model.state_dict())
 
-        # Run second part of training procedure with the VAM branch re-enabled       
+        # Run second part of training procedure with the VAM branch re-enabled
         optimizer, lr_scheduler = get_optimizer(self, model, args, 
             train_dataset, val_dataset, data_train, train_opts,
             disable_vam_branch=False) # learning rate of the VAM projection layer is
@@ -168,6 +177,13 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         if trainer.state.best_metric > best_metric:
             best_trainer = trainer
             best_metric = trainer.state.best_metric if trainer.state.best_metric else 0
+            best_model_state = copy.deepcopy(model.state_dict())
+
+        # `model` is shared and kept mutating across every epoch/stage above, so
+        # best_trainer.model may no longer hold the weights it had when it was
+        # selected as best. Restore the snapshotted best weights before returning.
+        if best_model_state is not None:
+            best_trainer.model.load_state_dict(best_model_state)
 
         return best_trainer
 
