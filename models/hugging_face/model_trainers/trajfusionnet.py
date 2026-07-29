@@ -185,10 +185,11 @@ class TrajFusionNet(HuggingFaceTimeSeriesModel):
         # selected as best. Restore the snapshotted best weights before returning.
         if best_model_state is not None:
             best_trainer.model.load_state_dict(best_model_state)
+            best_trainer.args.output_dir = args.output_dir # set to top-level run dir
 
         return best_trainer
 
-    def _get_trainer(self, model, args, train_dataset, 
+    def _get_trainer(self, model, args, train_dataset,
                      val_dataset, optimizer, lr_scheduler):
         trainer = Trainer(
             model,
